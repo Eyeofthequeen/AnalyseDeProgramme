@@ -1,0 +1,94 @@
+PARSER_BEGIN(StatsAttributs)
+
+/**
+ * Simple brace matcher.
+ */
+import java.util.HashMap;
+
+enum Keys { PRIVATE, PROTECTED, PUBLIC, CLASSES }
+
+public class StatsAttributs {
+	public static void main(String[] args) {
+		try {
+		  new StatsAttributs(new java.io.StringReader(args[0])).Input();
+		  System.out.println("Syntax is okay");
+		} catch (Throwable e) {
+			System.out.println("Syntax check failed: " + e.getMessage());
+		}
+	}
+}
+PARSER_END(StatsAttributs)
+
+SKIP:  { " " | "\t" | "\n" | "\r"      }
+TOKEN: { <LBRACE: "{"> | <RBRACE: "}"> | <PRIVATE: "private"> | <PROTECTED: "protected"> | <CLASS: "class"> | <NEW: "new"> | <NUM: (["0"-"9"])+>
+		| <LPARENTHESIS: "("> | <RPARENTHESIS: ")"> | <EQUAL: "="> | <COMMA: ";"> | <UPPERCAMEL: (["A"-"Z"])+(["a"-"z","A"-"Z"])*>
+		| <LOWERCAMEL: (["a"-"z"])+(["a"-"z","A"-"Z"])*> |<BASIC: ["a"-"z","A"-"Z","_"] ( ["a"-"z","A"-"Z","_","-","0"-"9"] )* > }
+
+void Input() : {int count=0; HashMap<Keys, Integer> attributes=new HashMap<Keys, Integer>(); }
+{
+  attributes=MatchedClass() <EOF>
+  {
+    System.out.println("The number of classes is " + attributes.get(Keys.CLASSES));
+    System.out.println("The number of public attributes " + attributes.get(Keys.PUBLIC));
+    System.out.println("The number of protected attributes " + attributes.get(Keys.PROTECTED));
+    System.out.println("The number of private attributes " + attributes.get(Keys.PRIVATE));
+  }
+}
+
+HashMap<Keys, Integer> MatchedClass() : { HashMap<Keys, Integer> attributes=new HashMap<Keys, Integer>(), moreAttributes=new HashMap<Keys, Integer>();}
+{
+  <CLASS> <UPPERCAMEL> [moreAttributes=MatchedBraces()] [attributes=MatchedClass()]
+  {
+    int publicAtt = attributes.getOrDefault(Keys.PUBLIC, 0);
+	int privateAtt = attributes.getOrDefault(Keys.PRIVATE, 0);
+	int protectedAtt = attributes.getOrDefault(Keys.PROTECTED, 0);
+    int classes = attributes.getOrDefault(Keys.CLASSES, 0);
+    
+    attributes.put(Keys.CLASSES, ++classes);
+    attributes.put(Keys.PUBLIC, publicAtt + moreAttributes.getOrDefault(Keys.PUBLIC, 0));
+    attributes.put(Keys.PRIVATE, privateAtt + moreAttributes.getOrDefault(Keys.PRIVATE, 0));
+    attributes.put(Keys.PROTECTED, protectedAtt + moreAttributes.getOrDefault(Keys.PROTECTED, 0));
+
+    return attributes;
+  }
+}
+
+HashMap<Keys, Integer> MatchedBraces() : { HashMap<Keys, Integer> nested_attributes=new HashMap<Keys, Integer>(); }
+{
+ 	<LBRACE> [nested_attributes=MatchedAttributes()] [MatchedBraces()] <RBRACE>
+ 	{ return nested_attributes; }
+}
+
+HashMap<Keys, Integer> MatchedAttributes() : { boolean isPrivate=false, isProtected=false; HashMap<Keys, Integer> attributes = new HashMap<Keys, Integer>();}
+{
+  [isPrivate=MatchedPrivateKeyWord() | isProtected=MatchedProtectedKeyWord()] Type() <LOWERCAMEL> <EQUAL> Value() <COMMA> [attributes=MatchedAttributes()]
+  {
+    int publicAtt = attributes.getOrDefault(Keys.PUBLIC, 0);
+	int privateAtt = attributes.getOrDefault(Keys.PRIVATE, 0);
+	int protectedAtt = attributes.getOrDefault(Keys.PROTECTED, 0);
+
+	if (isPrivate) { ++privateAtt; }
+	else if (isProtected) { ++protectedAtt; }
+	else { ++publicAtt; }
+	
+    attributes.put(Keys.PUBLIC, publicAtt);
+    attributes.put(Keys.PRIVATE, privateAtt);
+    attributes.put(Keys.PROTECTED, protectedAtt);
+    
+    return attributes;
+  }
+}
+
+boolean MatchedPrivateKeyWord(): {} { <PRIVATE> { return true; }}
+
+boolean MatchedProtectedKeyWord(): {} { <PROTECTED> { return true; }}
+
+void Type(): {} { <LOWERCAMEL> | <UPPERCAMEL> }
+
+void Value(): {} { [NewObject() | <LOWERCAMEL> | <NUM>] }
+
+void NewObject(): {} { <NEW> <UPPERCAMEL> Parenthesis() }
+
+void Parenthesis(): {} { <LPARENTHESIS> Params() <RPARENTHESIS> }
+
+void Params(): {} { Value() ("," Value())* }
