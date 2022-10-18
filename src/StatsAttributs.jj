@@ -1,8 +1,5 @@
 PARSER_BEGIN(StatsAttributs)
 
-/**
- * Simple brace matcher.
- */
 import java.util.HashMap;
 
 enum Keys { PRIVATE, PROTECTED, PUBLIC, CLASSES }
