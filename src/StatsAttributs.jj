@@ -8,7 +8,7 @@ public class StatsAttributs {
 	public static void main(String[] args) {
 		try {
 		  new StatsAttributs(new java.io.StringReader(args[0])).Input();
-		  System.out.println("Syntax is okay");
+		  System.out.println("Parser exécuté avec succès.");
 		} catch (Throwable e) {
 			System.out.println("Syntax check failed: " + e.getMessage());
 		}
@@ -21,15 +21,28 @@ TOKEN: { <LBRACE: "{"> | <RBRACE: "}"> | <PRIVATE: "private"> | <PROTECTED: "pro
 		| <LPARENTHESIS: "("> | <RPARENTHESIS: ")"> | <EQUAL: "="> | <COMMA: ";"> | <UPPERCAMEL: (["A"-"Z"])+(["a"-"z","A"-"Z"])*>
 		| <LOWERCAMEL: (["a"-"z"])+(["a"-"z","A"-"Z"])*> |<BASIC: ["a"-"z","A"-"Z","_"] ( ["a"-"z","A"-"Z","_","-","0"-"9"] )* > }
 
-void Input() : {int count=0; HashMap<Keys, Integer> attributes=new HashMap<Keys, Integer>(); }
+void Input() : {int count=0; HashMap<Keys, Integer> attributs=new HashMap<Keys, Integer>(); }
 {
-  attributes=MatchedClass() <EOF>
+  attributs=MatchedClass() <EOF>
   {
-    System.out.println("The number of classes is " + attributes.get(Keys.CLASSES));
-    System.out.println("The number of public attributes " + attributes.get(Keys.PUBLIC));
-    System.out.println("The number of protected attributes " + attributes.get(Keys.PROTECTED));
-    System.out.println("The number of private attributes " + attributes.get(Keys.PRIVATE));
+    String pourcentage = " % ";
+    String totalOf = "\t Avec un total de : ";
+	int total = attributs.get(Keys.PROTECTED) + attributs.get(Keys.PUBLIC) + attributs.get(Keys.PRIVATE);
+
+	System.out.println("Total d'attributs : " + total);
+	System.out.println("Pourcentage d'attributs public :  " + Pourcentage(total, attributs.get(Keys.CLASSES)) + pourcentage + totalOf + attributs.get(Keys.CLASSES));
+	System.out.println("Pourcentage d'attributs protected : " + Pourcentage(total, attributs.get(Keys.PROTECTED)) + pourcentage + totalOf + attributs.get(Keys.PROTECTED));
+	System.out.println("Pourcentage d'attributs private : " + Pourcentage(total, attributs.get(Keys.PRIVATE)) + pourcentage + totalOf + attributs.get(Keys.PRIVATE));
   }
+}
+
+float Pourcentage(int total, int attributes): { } {
+  	{
+		if (total > 0) {
+			return (float) attributes/total * 100;
+		}
+		return 0;
+	}
 }
 
 HashMap<Keys, Integer> MatchedClass() : { HashMap<Keys, Integer> data=new HashMap<Keys, Integer>(), buffer=new HashMap<Keys, Integer>();}
