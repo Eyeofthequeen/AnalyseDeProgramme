@@ -37,12 +37,12 @@ void Input() : {int count=0; HashMap<Keys, Integer> attributs=new HashMap<Keys, 
 }
 
 String Pourcentage(int total, int attributes): { } {
-  	{  	  	
-		if (total > 0) {
-			return String.format("%.2f", (float) attributes/total * 100);
-		}
-		return "0";
+  {  	  	
+	if (total > 0) {
+		return String.format("%.2f", (float) attributes/total * 100);
 	}
+	return "0";
+  }
 }
 
 HashMap<Keys, Integer> MatchedClass() : { HashMap<Keys, Integer> data=new HashMap<Keys, Integer>(), buffer=new HashMap<Keys, Integer>();}
