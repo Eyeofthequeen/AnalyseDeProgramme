@@ -36,12 +36,12 @@ void Input() : {int count=0; HashMap<Keys, Integer> attributs=new HashMap<Keys, 
   }
 }
 
-float Pourcentage(int total, int attributes): { } {
-  	{
+String Pourcentage(int total, int attributes): { } {
+  	{  	  	
 		if (total > 0) {
-			return (float) attributes/total * 100;
+			return String.format("%.2f", (float) attributes/total * 100);
 		}
-		return 0;
+		return "0";
 	}
 }
 
