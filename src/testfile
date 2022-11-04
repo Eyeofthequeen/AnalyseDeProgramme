@@ -1,0 +1,18 @@
+class Test {
+    private int w = 10;
+    public int x = 0;
+    protected int y;
+    public int z;
+}
+
+class T {
+    private float bruh;
+    public void test() {
+        public int i = -1;
+		public float j = 1.0;
+		for(; i < 0; i++) {
+			j += 3.2;
+		}
+    }
+    protected int i;
+}

@@ -1,14 +1,16 @@
 PARSER_BEGIN(StatsAttributs)
 
 import java.util.HashMap;
+import java.nio.file.*;
 
 enum Keys { PRIVATE, PROTECTED, PUBLIC, CLASSES }
 
 public class StatsAttributs {
 	public static void main(String[] args) {
 		try {
-		  new StatsAttributs(new java.io.StringReader(args[0])).Input();
-		  System.out.println("Parser exécuté avec succès.");
+            String file = Files.readString(Paths.get(args[0]));
+            new StatsAttributs(new java.io.StringReader(file)).Input();
+		    System.out.println("Parser exï¿½cutï¿½ avec succï¿½s.");
 		} catch (Throwable e) {
 			System.out.println("Syntax check failed: " + e.getMessage());
 		}
