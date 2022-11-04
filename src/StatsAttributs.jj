@@ -1,8 +1,5 @@
 PARSER_BEGIN(StatsAttributs)
 
-/**
- * Simple brace matcher.
- */
 import java.util.HashMap;
 
 enum Keys { PRIVATE, PROTECTED, PUBLIC, CLASSES }
@@ -11,7 +8,7 @@ public class StatsAttributs {
 	public static void main(String[] args) {
 		try {
 		  new StatsAttributs(new java.io.StringReader(args[0])).Input();
-		  System.out.println("Syntax is okay");
+		  System.out.println("Parser exécuté avec succès.");
 		} catch (Throwable e) {
 			System.out.println("Syntax check failed: " + e.getMessage());
 		}
@@ -20,18 +17,31 @@ public class StatsAttributs {
 PARSER_END(StatsAttributs)
 
 SKIP:  { " " | "\t" | "\n" | "\r"      }
-TOKEN: { <LBRACE: "{"> | <RBRACE: "}"> | <PRIVATE: "private"> | <PROTECTED: "protected"> | <CLASS: "class"> | <NEW: "new"> | <NUM: (["0"-"9"])+>
+TOKEN: { <LBRACE: "{"> | <RBRACE: "}"> | <PRIVATE: "private"> | <PROTECTED: "protected"> | <PUBLIC: "public"> | <STATIC: "static"> | <CLASS: "class"> | <NEW: "new"> | <NUM: (["0"-"9"])+>
 		| <LPARENTHESIS: "("> | <RPARENTHESIS: ")"> | <EQUAL: "="> | <COMMA: ";"> | <UPPERCAMEL: (["A"-"Z"])+(["a"-"z","A"-"Z"])*>
-		| <LOWERCAMEL: (["a"-"z"])+(["a"-"z","A"-"Z"])*> |<BASIC: ["a"-"z","A"-"Z","_"] ( ["a"-"z","A"-"Z","_","-","0"-"9"] )* > }
+		| <LOWERCAMEL: (["a"-"z"])+(["a"-"z","A"-"Z"])*> | <BASIC: ["a"-"z","A"-"Z","_"] ( ["a"-"z","A"-"Z","_","-","0"-"9"] )* > }
 
-void Input() : {int count=0; HashMap<Keys, Integer> attributes=new HashMap<Keys, Integer>(); }
+void Input() : {int count=0; HashMap<Keys, Integer> attributs=new HashMap<Keys, Integer>(); }
 {
-  attributes=MatchedClass() <EOF>
+  attributs=MatchedClass() <EOF>
   {
-    System.out.println("The number of classes is " + attributes.get(Keys.CLASSES));
-    System.out.println("The number of public attributes " + attributes.get(Keys.PUBLIC));
-    System.out.println("The number of protected attributes " + attributes.get(Keys.PROTECTED));
-    System.out.println("The number of private attributes " + attributes.get(Keys.PRIVATE));
+    String pourcentage = " % ";
+    String totalOf = "\t Avec un total de : ";
+	int total = attributs.get(Keys.PROTECTED) + attributs.get(Keys.PUBLIC) + attributs.get(Keys.PRIVATE);
+
+	System.out.println("Total d'attributs : " + total);
+	System.out.println("Pourcentage d'attributs public :  " + Pourcentage(total, attributs.get(Keys.PUBLIC)) + pourcentage + totalOf + attributs.get(Keys.PUBLIC));
+	System.out.println("Pourcentage d'attributs protected : " + Pourcentage(total, attributs.get(Keys.PROTECTED)) + pourcentage + totalOf + attributs.get(Keys.PROTECTED));
+	System.out.println("Pourcentage d'attributs private : " + Pourcentage(total, attributs.get(Keys.PRIVATE)) + pourcentage + totalOf + attributs.get(Keys.PRIVATE));
+  }
+}
+
+String Pourcentage(int total, int attributes): { } {
+  {  	  	
+	if (total > 0) {
+		return String.format("%.2f", (float) attributes/total * 100);
+	}
+	return "0";
   }
 }
 
@@ -53,23 +63,29 @@ HashMap<Keys, Integer> MatchedClass() : { HashMap<Keys, Integer> data=new HashMa
   }
 }
 
-HashMap<Keys, Integer> MatchedBraces() : { HashMap<Keys, Integer> nestedAttributs=new HashMap<Keys, Integer>(); }
+HashMap<Keys, Integer> MatchedBraces() : { HashMap<Keys, Integer> nestedAttributs=new HashMap<Keys, Integer>(); Token token;}
 {
- 	<LBRACE> [nestedAttributs=MatchedAttributs()] [MatchedBraces()] <RBRACE>
+ 	<LBRACE> nestedAttributs = MatchedAttributsOrMethod() [MatchedBraces()] <RBRACE>
  	{ return nestedAttributs; }
 }
 
-HashMap<Keys, Integer> MatchedAttributs() : { boolean isPrivate=false, isProtected=false; HashMap<Keys, Integer> attributs = new HashMap<Keys, Integer>();}
+HashMap<Keys, Integer> MatchedAttributsOrMethod(): { Token token; HashMap<Keys, Integer> nestedAttributs=new HashMap<Keys, Integer>(); }
 {
-  [isPrivate=MatchedPrivateKeyWord() | isProtected=MatchedProtectedKeyWord()] Attribut() [attributs=MatchedAttributs()]
+  (token = Prefixer() (nestedAttributs=MatchedAttribut(token, nestedAttributs)| Method())+)*
+  { return nestedAttributs; }
+}
+
+HashMap<Keys, Integer> MatchedAttribut(Token token, HashMap<Keys, Integer> attributs) : { }
+{
+  Attribut()
   {
     int publicAtt = attributs.getOrDefault(Keys.PUBLIC, 0);
 	int privateAtt = attributs.getOrDefault(Keys.PRIVATE, 0);
 	int protectedAtt = attributs.getOrDefault(Keys.PROTECTED, 0);
 
-	if (isPrivate) { ++privateAtt; }
-	else if (isProtected) { ++protectedAtt; }
-	else { ++publicAtt; }
+	if (token == null || token.image == "public") { ++publicAtt; }
+	else if (token.image == "private") { ++privateAtt; }
+	else if (token.image == "protected") { ++protectedAtt; }
 	
     attributs.put(Keys.PUBLIC, publicAtt);
     attributs.put(Keys.PRIVATE, privateAtt);
@@ -79,11 +95,12 @@ HashMap<Keys, Integer> MatchedAttributs() : { boolean isPrivate=false, isProtect
   }
 }
 
-boolean MatchedPrivateKeyWord(): {} { <PRIVATE> { return true; }}
+Token AccessSpecifier(): {Token token = null;} { (token = <PUBLIC> | token = <PRIVATE> | token = <PROTECTED> | token = <STATIC>)* { return token; }}
+Token Prefixer(): { Token token = null; } { token = AccessSpecifier() Type() <LOWERCAMEL> { return token; }}
 
-boolean MatchedProtectedKeyWord(): {} { <PROTECTED> { return true; }}
+void Attribut(): {} { <EQUAL> Value() <COMMA> }
 
-void Attribut(): {} { Type() <LOWERCAMEL> <EQUAL> Value() <COMMA> }
+void Method(): {} { Parenthesis() <LBRACE> <RBRACE>} // Inside method not handled
 
 void Type(): {} { <LOWERCAMEL> | <UPPERCAMEL> }
 

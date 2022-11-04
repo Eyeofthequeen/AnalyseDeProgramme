@@ -14,4 +14,4 @@
 
 3. Run the parser with the name of the class.
 
-   <code>javac NameClass ""</code>
+   <code>java NameClass ""</code>
