@@ -30,3 +30,12 @@ public class Other extends Test implements I, J {
     public void test() {}
     public void guh() {}
 }
+
+public class Qwerty {
+    private Other other;
+    private I variable;
+
+    public J function(T, I) {
+        return new Other();
+    }
+}
