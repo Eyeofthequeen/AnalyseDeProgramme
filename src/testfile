@@ -1,11 +1,19 @@
-class Test {
+interface I {
+    public void test();
+}
+
+interface J {
+    public void guh();
+}
+
+public abstract class Test {
     private int w = 10;
     public int x = 0;
     protected int y;
     public int z;
 }
 
-class T {
+class T implements I {
     private float bruh;
     public void test() {
         public int i = -1;
@@ -15,4 +23,10 @@ class T {
 		}
     }
     protected int i;
+}
+
+public class Other extends Test implements I, J {
+    private Test test;
+    public void test() {}
+    public void guh() {}
 }

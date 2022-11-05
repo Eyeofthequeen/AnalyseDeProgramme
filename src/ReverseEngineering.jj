@@ -1,0 +1,125 @@
+options {
+    DEBUG_PARSER = false;
+    DEBUG_TOKEN_MANAGER = false;
+}
+
+PARSER_BEGIN(ReverseEngineering)
+
+import java.nio.file.*;
+import java.util.*;
+
+public class ReverseEngineering {
+    public static void main(String[] args) {
+    		try {
+                String file = Files.readString(Paths.get(args[0]));
+    		    List<Link> links = new ReverseEngineering(new java.io.StringReader(file)).MatchClasses();
+    		} catch (Throwable e) {
+    			System.out.println("Syntax check failed: " + e.getMessage());
+    		}
+    	}
+}
+
+class Link {
+    public String from;
+    public String to;
+    public LinkType type;
+
+    public Link() {}
+    public Link(String from, String to, LinkType type) {
+        this.from = from;
+        this.to = to;
+        this.type = type;
+    }
+
+    public String toString() {
+        return from + ((type == LinkType.INHERITANCE) ? "---|>" : "-----") + to;
+    }
+}
+
+enum LinkType {
+    INHERITANCE,
+    ASSOCIATION
+}
+
+PARSER_END(ReverseEngineering)
+
+SKIP:  { " " | "\t" | "\n" | "\r" }
+TOKEN: { <LBRACE: "{"> | <RBRACE: "}"> | <PRIVATE: "private"> | <PROTECTED: "protected"> | <PUBLIC: "public"> | <STATIC: "static"> | <ABSTRACT: "abstract"> | <CLASS: "class"> | <INTERFACE: "interface">
+        | <EXTENDS: "extends"> | <IMPLEMENTS: "implements"> | <NEW: "new"> | <COMMA: ","> | <NUM: (["0"-"9"])+> | <L_PARENTHESIS: "("> | <R_PARENTHESIS: ")"> | <EQUAL: "="> | <SEMI_COLON: ";">
+        | <WORD: (["a"-"z","A"-"Z"])+(["a"-"z","A"-"Z","0"-"9"])*> | <NOT_BRACE: ~["{","}"," ","\t","\n","\r"]>}
+
+JAVACODE
+void skip_to_matching_brace() {
+  Token tok;
+  int nesting = 1;
+  while (true) {
+    tok = getToken(1);
+    if (tok.kind == LBRACE) nesting++;
+    if (tok.kind == RBRACE) {
+      nesting--;
+      if (nesting == 0) break;
+    }
+    tok = getNextToken();
+  }
+}
+
+//TODO: Inheritance: implements/extends in class name, Association: class attributes/method parameters
+
+List<Link> MatchClasses() : {List<Link> links = new ArrayList<>(); Set<String> names = new HashSet<>();}
+{
+    [Class(names, links)]
+    {for(String name: names) System.out.println(name); for(Link link: links)System.out.println(link);return links;}
+}
+
+void Class(Set<String> names, List<Link> links) : {String name; Link extension = null; List<Link> implementations = null;}
+{
+    [Visibility()] [<ABSTRACT>] (<CLASS> | <INTERFACE>) name=ClassName() [extension = Extension(name)] [implementations = Implementation(name)] MatchedBraces() [Class(names, links)]
+    {
+        names.add(name); // needed to know which class variables counts as an association
+        if (extension != null)
+            links.add(extension);
+        if (implementations != null)
+            links.addAll(implementations);
+     }
+}
+
+String ClassName() : {Token token;}
+{
+    token = <WORD>
+    {return token.image;}
+}
+
+void MatchedBraces() : {}
+{
+// TODO: get variables inside class
+   <LBRACE> skip_to_matching_brace() <RBRACE>
+}
+
+void Visibility() : {}
+{
+    <PRIVATE> | <PROTECTED> | <PUBLIC>
+}
+
+Link Extension(String from) : {Token to;}
+{
+    <EXTENDS> to=<WORD>
+    {
+        return new Link(from, to.image, LinkType.INHERITANCE);
+    }
+}
+
+List<Link> Implementation(String from) : {List<Link> to = new ArrayList<>(); Token token;}
+{
+    <IMPLEMENTS> token=<WORD> (MultipleImplementations(from, to))*
+    {
+        to.add(new Link(from, token.image, LinkType.INHERITANCE)); return to;
+    }
+}
+
+void MultipleImplementations(String from, List<Link> to) : {Token token;}
+{
+    <COMMA> token=<WORD>
+    {
+        to.add(new Link(from, token.image, LinkType.INHERITANCE));
+    }
+}
