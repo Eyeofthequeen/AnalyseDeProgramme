@@ -1,6 +1,7 @@
 PARSER_BEGIN(StatsAttributs)
 
 import java.util.HashMap;
+import java.util.regex.Pattern;
 
 enum Keys { PRIVATE, PROTECTED, PUBLIC, CLASSES }
 
@@ -112,6 +113,7 @@ HashMap<Keys, Integer> MatchedAttribut(Token token, HashMap<Keys, Integer> attri
 	if (token == null || token.image == "public") { ++publicAtt; }
 	else if (token.image == "private") { ++privateAtt; }
 	else if (token.image == "protected") { ++protectedAtt; }
+	else { throw new ParseException("Spécificateur d'accès invalide."); }
 	
     attributs.put(Keys.PUBLIC, publicAtt);
     attributs.put(Keys.PRIVATE, privateAtt);
@@ -128,7 +130,7 @@ void Attribut(): {} { <EQUAL> Value() <SEMICOLON> }
 
 void Method(): {} { Parenthesis() <LBRACE> <RBRACE>} // Inside method not handled
 
-void Value(): {} { [NewObject() | <LOWERCAMEL> | Number()] }
+void Value(): {} { (NewObject() | <LOWERCAMEL> | Number())+ }
 
 void Type(): { } { <UPPERCAMEL> | <LOWERCAMEL> }
 
