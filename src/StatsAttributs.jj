@@ -8,18 +8,44 @@ public class StatsAttributs {
 	public static void main(String[] args) {
 		try {
 		  new StatsAttributs(new java.io.StringReader(args[0])).Input();
-		  System.out.println("Parser exécuté avec succès.");
+		  System.out.println("Parser executed with success.");
 		} catch (Throwable e) {
-			System.out.println("Syntax check failed: " + e.getMessage());
+			System.out.println("Syntax check failed : " + e.getMessage());
 		}
 	}
 }
 PARSER_END(StatsAttributs)
 
-SKIP:  { " " | "\t" | "\n" | "\r"      }
-TOKEN: { <LBRACE: "{"> | <RBRACE: "}"> | <PRIVATE: "private"> | <PROTECTED: "protected"> | <PUBLIC: "public"> | <STATIC: "static"> | <CLASS: "class"> | <NEW: "new"> | <NUM: (["0"-"9"])+>
-		| <LPARENTHESIS: "("> | <RPARENTHESIS: ")"> | <EQUAL: "="> | <COMMA: ";"> | <UPPERCAMEL: (["A"-"Z"])+(["a"-"z","A"-"Z"])*>
-		| <LOWERCAMEL: (["a"-"z"])+(["a"-"z","A"-"Z"])*> | <BASIC: ["a"-"z","A"-"Z","_"] ( ["a"-"z","A"-"Z","_","-","0"-"9"] )* > }
+SKIP:  { " " | "\t" | "\n" | "\r" }
+TOKEN:
+{
+  <PRIVATE: "private">
+  | <PROTECTED: "protected">
+  | <PUBLIC: "public">
+  | <STATIC: "static">
+  | <CLASS: "class">
+  | <NEW: "new">
+}
+
+// <BASIC: ["a"-"z","A"-"Z","_"] ( ["a"-"z","A"-"Z","_","-","0"-"9"] )* >
+
+TOKEN:
+{
+  <LBRACE: "{"> | <RBRACE: "}">
+  | <LPARENTHESIS: "("> | <RPARENTHESIS: ")">
+  | <EQUAL: "=">
+  | <DOT: ".">
+  | <SEMICOLON: ";">
+  | <UPPERCAMEL: (["A"-"Z"])+(["a"-"z","A"-"Z", "0"-"9", "_"])*>
+  | <LOWERCAMEL: (["a"-"z"])+(["a"-"z","A"-"Z", "0"-"9", "_"])*>
+}
+
+TOKEN:
+{
+  <NUMBER: <INTEGER> | <REEL>>
+  | <INTEGER: (["0"-"9"])+>
+  | <REEL: <INTEGER> (<DOT> <INTEGER>)?>
+}
 
 void Input() : {int count=0; HashMap<Keys, Integer> attributs=new HashMap<Keys, Integer>(); }
 {
@@ -48,7 +74,7 @@ String Pourcentage(int total, int attributes): { } {
 HashMap<Keys, Integer> MatchedClass() : { HashMap<Keys, Integer> data=new HashMap<Keys, Integer>(), buffer=new HashMap<Keys, Integer>();}
 {
   <CLASS> <UPPERCAMEL> [buffer=MatchedBraces()] [data=MatchedClass()]
-  {
+  {    
     int publicAtt = data.getOrDefault(Keys.PUBLIC, 0);
 	int privateAtt = data.getOrDefault(Keys.PRIVATE, 0);
 	int protectedAtt = data.getOrDefault(Keys.PROTECTED, 0);
@@ -98,16 +124,28 @@ HashMap<Keys, Integer> MatchedAttribut(Token token, HashMap<Keys, Integer> attri
 Token AccessSpecifier(): {Token token = null;} { (token = <PUBLIC> | token = <PRIVATE> | token = <PROTECTED> | token = <STATIC>)* { return token; }}
 Token Prefixer(): { Token token = null; } { token = AccessSpecifier() Type() <LOWERCAMEL> { return token; }}
 
-void Attribut(): {} { <EQUAL> Value() <COMMA> }
+void Attribut(): {} { <EQUAL> Value() <SEMICOLON> }
 
 void Method(): {} { Parenthesis() <LBRACE> <RBRACE>} // Inside method not handled
 
-void Type(): {} { <LOWERCAMEL> | <UPPERCAMEL> }
+void Value(): {} { [NewObject() | <LOWERCAMEL> | Number()] }
 
-void Value(): {} { [NewObject() | <LOWERCAMEL> | <NUM>] }
+void Type(): { } { <UPPERCAMEL> | <LOWERCAMEL> }
 
 void NewObject(): {} { <NEW> <UPPERCAMEL> Parenthesis() }
 
 void Parenthesis(): {} { <LPARENTHESIS> Params() <RPARENTHESIS> }
 
 void Params(): {} { Value() ("," Value())* }
+
+
+void Number(): {}
+{
+  <NUMBER>
+  {
+     Token nextToken = getToken(1);
+     if (nextToken.image.equals(".")) {
+		throw new ParseException("A number can only have one [.]. Expected value : " + getToken(0).image);
+     }
+  }
+}
