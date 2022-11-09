@@ -23,3 +23,6 @@
    getNextToken() will get the next token in line and execute it with the current token. If an error occures, it won't be the right error. NOT TO USE.
 
    If we want to know what is the next token in line without executing it, we can use <code>getToken(1)</code> with <code>getToken(0)</code> being the current token in use.
+
+2. Localiser le numéro du début et de fin de colonne d'un token. <br>
+   <code>Token token = getToken(0); token.beginColumn; token.endColumn;</code>
