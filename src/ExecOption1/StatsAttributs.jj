@@ -1,7 +1,5 @@
 PARSER_BEGIN(StatsAttributs)
-
 import java.util.HashMap;
-import java.util.regex.Pattern;
 
 enum Keys { PRIVATE, PROTECTED, PUBLIC, CLASSES }
 
@@ -130,7 +128,7 @@ void Attribut(): {} { <EQUAL> Value() <SEMICOLON> }
 
 void Method(): {} { Parenthesis() <LBRACE> <RBRACE>} // Inside method not handled
 
-void Value(): {} { (NewObject() | <LOWERCAMEL> | Number())+ }
+void Value(): {} { NewObject() | <LOWERCAMEL> | Number() }
 
 void Type(): { } { <UPPERCAMEL> | <LOWERCAMEL> }
 

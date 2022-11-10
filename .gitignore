@@ -8,4 +8,6 @@
 # Files generated when compiled
 src/*.java
 src/*.class
+src/*/*.java
+src/*/*.class
 bin/*
