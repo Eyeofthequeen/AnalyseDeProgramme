@@ -1,0 +1,156 @@
+PARSER_BEGIN(Visibility)
+import java.util.*;
+
+public class Visibility {
+    public static void main(String[] args) {
+        try {
+         	new Visibility(new java.io.StringReader(args[0])).Input();
+            System.out.println("Syntax is okay");
+        } catch (Throwable e) {
+            System.out.println("Syntax check failed: " + e.getMessage());
+        }
+    }
+}
+
+class Class {
+  	String specifier;
+  	String name;
+	ArrayList<String> visibleFor = new ArrayList<String>();
+  	
+	public Class(String specifier, String name) {
+	  	this.specifier = specifier;
+		this.name = name;
+	}
+
+	void addVisibleFor(String name) { visibleFor.add(name); }
+
+	void addAllVisibleFor(ArrayList<String> all) {
+		for(String name : all) {
+			visibleFor.add(name);
+		}
+	}
+}
+
+class Data {
+  	HashMap<String, Class> classes = new HashMap<String, Class>();
+	HashMap<String, ArrayList<String>> declarations = new HashMap<String, ArrayList<String>>();
+  	
+  	private String error = "";
+  	private String currentClass = "";
+
+  	private String empty = "";
+  	private ArrayList<String> currentObjectsDeclarations = new ArrayList<String>();
+	public Data() {}
+}
+
+class Stats {
+	static ArrayList<String> visibleFor = new ArrayList<String>();
+	static Map<String, ArrayList<String>> visibleForByClass = new HashMap<String, ArrayList<String>>();
+	static Map<String, String> specifiersByClass = new HashMap<String, String>();
+
+	static Token specifier = null;
+
+	static void compileClasses(String currentClassName, Token specifier) {
+		visibleForByClass.put(currentClassName, visibleFor);
+		visibleFor = new ArrayList<String>();
+
+		if (specifier != null) { 
+			specifiersByClass.put(currentClassName, specifier.image);
+		} else {
+		  	specifiersByClass.put(currentClassName, "public");
+		}
+	}
+
+	static void output() {
+		for (Map.Entry<String, String> entry : specifiersByClass.entrySet()) {
+			String name = entry.getKey();
+			String specifier = entry.getValue();
+			ArrayList<String> associations = visibleForByClass.get(name);
+
+			System.out.println("Nom de la classe : " + name);
+			System.out.println("Spécificateur d'accès : " + specifier);
+			System.out.println("Nombre d'associations : " + associations.size());
+			System.out.println("Associations : " + associations);
+
+
+			System.out.println("\n");
+		}
+	}
+}
+PARSER_END(Visibility)
+
+SKIP:  { " " | "\t" | "\n" | "\r" }
+TOKEN:
+{
+  <PRIVATE: "private">
+  | <PROTECTED: "protected">
+  | <PUBLIC: "public">
+  | <STATIC: "static">
+  | <CLASS: "class">
+  | <NEW: "new">
+}
+
+TOKEN:
+{
+  <LBRACE: "{"> | <RBRACE: "}">
+  | <LPARENTHESIS: "("> | <RPARENTHESIS: ")">
+  | <EQUAL: "=">
+  | <DOT: ".">
+  | <SEMICOLON: ";">
+  | <UPPERCAMEL: (["A"-"Z"])+(["a"-"z","A"-"Z", "0"-"9", "_"])*>
+  | <LOWERCAMEL: (["a"-"z"])+(["a"-"z","A"-"Z", "0"-"9", "_"])*>
+}
+
+TOKEN:
+{
+  <NUMBER: <INTEGER> | <REEL>>
+  | <INTEGER: (["0"-"9"])+>
+  | <REEL: <INTEGER> (<DOT> <INTEGER>)?>
+}
+
+void Input() : {} { MatchedClass() <EOF> { Stats.output(); }}
+
+void MatchedClass() : { Token name, specifier; }
+{
+  (specifier = AccessSpecifier()) <CLASS> (name = <UPPERCAMEL>) [MatchedBraces(name.image, specifier)] [MatchedClass()]
+}
+
+void MatchedBraces(String name, Token specifier) : {}
+{
+	<LBRACE> MatchedAttributsOrMethod() <RBRACE>
+
+	{ Stats.compileClasses(name, specifier); }
+}
+
+void MatchedAttributsOrMethod() : {} { (Prefixer() (MatchedAttribut()| Method())+)* }
+
+void MatchedAttribut() : {} { Attribut() }
+
+Token AccessSpecifier(): {Token token = null;} { (token = <PUBLIC> | token = <PRIVATE> | token = <PROTECTED> | token = <STATIC>)* { return token; }}
+Token Prefixer(): { Token token = null; } { token = AccessSpecifier() Type() <LOWERCAMEL> { return token; }}
+
+void Method(): {} { Parenthesis() <LBRACE> <RBRACE>} // Inside method not handled
+void Parenthesis(): {} { <LPARENTHESIS> [Params()] <RPARENTHESIS> }
+void Params(): {} { Value() ("," Value())* }
+void Type(): { } { <UPPERCAMEL> | <LOWERCAMEL> }
+
+void Attribut(): {} { <EQUAL> Value() <SEMICOLON> }
+void Value(): {} { (NewObject() | <LOWERCAMEL> | Number()) }
+
+void NewObject(): { Token name; } {
+  <NEW> name = <UPPERCAMEL> Parenthesis()
+  {
+	Stats.visibleFor.add(name.image);
+  }
+}
+
+void Number(): {}
+{
+  <NUMBER>
+  {
+     Token nextToken = getToken(1);
+     if (nextToken.image.equals(".")) {
+		throw new ParseException("A number can only have one [.]. Expected value : " + getToken(0).image);
+     }
+  }
+}
