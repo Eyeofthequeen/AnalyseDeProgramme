@@ -12,37 +12,6 @@ public class Visibility {
     }
 }
 
-class Class {
-  	String specifier;
-  	String name;
-	ArrayList<String> visibleFor = new ArrayList<String>();
-  	
-	public Class(String specifier, String name) {
-	  	this.specifier = specifier;
-		this.name = name;
-	}
-
-	void addVisibleFor(String name) { visibleFor.add(name); }
-
-	void addAllVisibleFor(ArrayList<String> all) {
-		for(String name : all) {
-			visibleFor.add(name);
-		}
-	}
-}
-
-class Data {
-  	HashMap<String, Class> classes = new HashMap<String, Class>();
-	HashMap<String, ArrayList<String>> declarations = new HashMap<String, ArrayList<String>>();
-  	
-  	private String error = "";
-  	private String currentClass = "";
-
-  	private String empty = "";
-  	private ArrayList<String> currentObjectsDeclarations = new ArrayList<String>();
-	public Data() {}
-}
-
 class Stats {
 	static ArrayList<String> visibleFor = new ArrayList<String>();
 	static Map<String, ArrayList<String>> visibleForByClass = new HashMap<String, ArrayList<String>>();
