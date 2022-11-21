@@ -13,6 +13,19 @@ public class StatsAttributs {
 		}
 	}
 }
+
+class Stats {
+  	static int prive = 0;
+  	static int publique = 0;
+  	static int protege = 0;
+  	
+	static HashMap<Keys, Integer> cache = new HashMap<Keys, Integer>();
+	static HashMap<Keys, Integer> buffer = new HashMap<Keys, Integer>();
+
+	static void updateBuffer() {
+		buffer.putAll(cache);
+	}
+}
 PARSER_END(StatsAttributs)
 
 SKIP:  { " " | "\t" | "\n" | "\r" }
@@ -46,18 +59,18 @@ TOKEN:
   | <REEL: <INTEGER> (<DOT> <INTEGER>)?>
 }
 
-void Input() : {int count=0; HashMap<Keys, Integer> attributs=new HashMap<Keys, Integer>(); }
+void Input() : { }
 {
-  attributs=MatchedClass() <EOF>
+  MatchedClass() <EOF>
   {
     String pourcentage = " % ";
     String totalOf = "\t Avec un total de : ";
-	int total = attributs.get(Keys.PROTECTED) + attributs.get(Keys.PUBLIC) + attributs.get(Keys.PRIVATE);
+	int total = Stats.publique + Stats.prive + Stats.protege;
 
 	System.out.println("Total d'attributs : " + total);
-	System.out.println("Pourcentage d'attributs public :  " + Pourcentage(total, attributs.get(Keys.PUBLIC)) + pourcentage + totalOf + attributs.get(Keys.PUBLIC));
-	System.out.println("Pourcentage d'attributs protected : " + Pourcentage(total, attributs.get(Keys.PROTECTED)) + pourcentage + totalOf + attributs.get(Keys.PROTECTED));
-	System.out.println("Pourcentage d'attributs private : " + Pourcentage(total, attributs.get(Keys.PRIVATE)) + pourcentage + totalOf + attributs.get(Keys.PRIVATE));
+	System.out.println("Pourcentage d'attributs public :  " + Pourcentage(total, Stats.publique) + pourcentage + totalOf + Stats.publique);
+	System.out.println("Pourcentage d'attributs private : " + Pourcentage(total, Stats.prive) + pourcentage + totalOf + Stats.prive);
+	System.out.println("Pourcentage d'attributs protected : " + Pourcentage(total, Stats.protege) + pourcentage + totalOf + Stats.protege);
   }
 }
 
@@ -70,54 +83,29 @@ String Pourcentage(int total, int attributes): { } {
   }
 }
 
-HashMap<Keys, Integer> MatchedClass() : { HashMap<Keys, Integer> data=new HashMap<Keys, Integer>(), buffer=new HashMap<Keys, Integer>();}
+void MatchedClass() : {}
 {
-  <CLASS> <UPPERCAMEL> [buffer=MatchedBraces()] [data=MatchedClass()]
-  {    
-    int publicAtt = data.getOrDefault(Keys.PUBLIC, 0);
-	int privateAtt = data.getOrDefault(Keys.PRIVATE, 0);
-	int protectedAtt = data.getOrDefault(Keys.PROTECTED, 0);
-    int classes = data.getOrDefault(Keys.CLASSES, 0);
-    
-    data.put(Keys.CLASSES, ++classes);
-    data.put(Keys.PUBLIC, publicAtt + buffer.getOrDefault(Keys.PUBLIC, 0));
-    data.put(Keys.PRIVATE, privateAtt + buffer.getOrDefault(Keys.PRIVATE, 0));
-    data.put(Keys.PROTECTED, protectedAtt + buffer.getOrDefault(Keys.PROTECTED, 0));
-
-    return data;
-  }
+  <CLASS> <UPPERCAMEL> [MatchedBraces()] [MatchedClass()]
 }
 
-HashMap<Keys, Integer> MatchedBraces() : { HashMap<Keys, Integer> nestedAttributs=new HashMap<Keys, Integer>(); Token token;}
+void MatchedBraces() : {}
 {
- 	<LBRACE> nestedAttributs = MatchedAttributsOrMethod() [MatchedBraces()] <RBRACE>
- 	{ return nestedAttributs; }
+ 	<LBRACE> MatchedAttributsOrMethod() [MatchedBraces()] <RBRACE>
 }
 
-HashMap<Keys, Integer> MatchedAttributsOrMethod(): { Token token; HashMap<Keys, Integer> nestedAttributs=new HashMap<Keys, Integer>(); }
+void MatchedAttributsOrMethod(): { Token token; }
 {
-  (token = Prefixer() (nestedAttributs=MatchedAttribut(token, nestedAttributs)| Method())+)*
-  { return nestedAttributs; }
+  (token = Prefixer() (MatchedAttribut(token)| Method())+)*
 }
 
-HashMap<Keys, Integer> MatchedAttribut(Token token, HashMap<Keys, Integer> attributs) : { }
+void MatchedAttribut(Token token) : { }
 {
   Attribut()
   {
-    int publicAtt = attributs.getOrDefault(Keys.PUBLIC, 0);
-	int privateAtt = attributs.getOrDefault(Keys.PRIVATE, 0);
-	int protectedAtt = attributs.getOrDefault(Keys.PROTECTED, 0);
-
-	if (token == null || token.image == "public") { ++publicAtt; }
-	else if (token.image == "private") { ++privateAtt; }
-	else if (token.image == "protected") { ++protectedAtt; }
+	if (token == null || token.image == "public") { ++Stats.publique; }
+	else if (token.image == "private") { ++Stats.prive; }
+	else if (token.image == "protected") { ++Stats.protege; }
 	else { throw new ParseException("Spécificateur d'accès invalide."); }
-	
-    attributs.put(Keys.PUBLIC, publicAtt);
-    attributs.put(Keys.PRIVATE, privateAtt);
-    attributs.put(Keys.PROTECTED, protectedAtt);
-    
-    return attributs;
   }
 }
 
@@ -134,7 +122,7 @@ void Type(): { } { <UPPERCAMEL> | <LOWERCAMEL> }
 
 void NewObject(): {} { <NEW> <UPPERCAMEL> Parenthesis() }
 
-void Parenthesis(): {} { <LPARENTHESIS> Params() <RPARENTHESIS> }
+void Parenthesis(): {} { <LPARENTHESIS> [Params()] <RPARENTHESIS> }
 
 void Params(): {} { Value() ("," Value())* }
 
