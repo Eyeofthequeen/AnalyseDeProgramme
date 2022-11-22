@@ -15,15 +15,42 @@ public class StatsAttributs {
 }
 
 class Stats {
-  	static int privates = 0;
-  	static int publics = 0;
-  	static int protecteds = 0;
+  	static int privates = 0, publics = 0, protecteds = 0;
+  	static private Integer repeatLong = 15, repeatDefault = 8;
   	
 	static HashMap<Keys, Integer> cache = new HashMap<Keys, Integer>();
 	static HashMap<Keys, Integer> buffer = new HashMap<Keys, Integer>();
 
 	static void updateBuffer() {
 		buffer.putAll(cache);
+	}
+
+	static void output() {
+	  	int total = publics + privates + protecteds;
+
+		lineOutput(repeatLong);
+	  	System.out.println("Total d'attributs : " + total);
+	  	lineOutput(repeatDefault);
+	  	System.out.println("\n Nombre d'attribut public  : " + publics);
+	  	pourcentage("Pourcentage d'attributs public : ", total, publics);
+
+	  	lineOutput(repeatDefault);
+		System.out.println("Nombre d'attribut private  : " + privates);
+	  	pourcentage("Pourcentage d'attributs private : ", total, privates);
+
+		lineOutput(repeatDefault);
+	  	System.out.println("Nombre d'attribut protected  : " + protecteds);
+	  	pourcentage("Pourcentage d'attributs protected : ", total, protecteds);
+	  	lineOutput(repeatLong);
+	}
+
+	private static void pourcentage(String message, int total, int attributes) {
+		if (total > 0) { System.out.println(message + String.format("%.2f", (float) attributes/total * 100) + "%"); }
+		else { System.out.println(message + "0%"); }
+	}
+
+	private static void lineOutput(Integer repeat) {
+		System.out.println(new String(new char[repeat]).replace("\0", "-"));
 	}
 }
 PARSER_END(StatsAttributs)
@@ -59,29 +86,7 @@ TOKEN:
   | <REEL: <INTEGER> (<DOT> <INTEGER>)?>
 }
 
-void Input() : { }
-{
-  MatchedClass() <EOF>
-  {
-    String pourcentage = " % ";
-    String totalOf = "\t Avec un total de : ";
-	int total = Stats.publics + Stats.privates + Stats.protecteds;
-
-	System.out.println("Total d'attributs : " + total);
-	System.out.println("Pourcentage d'attributs public :  " + Pourcentage(total, Stats.publics) + pourcentage + totalOf + Stats.publics);
-	System.out.println("Pourcentage d'attributs private : " + Pourcentage(total, Stats.privates) + pourcentage + totalOf + Stats.privates);
-	System.out.println("Pourcentage d'attributs protected : " + Pourcentage(total, Stats.protecteds) + pourcentage + totalOf + Stats.protecteds);
-  }
-}
-
-String Pourcentage(int total, int attributes): { } {
-  {  	  	
-	if (total > 0) {
-		return String.format("%.2f", (float) attributes/total * 100);
-	}
-	return "0";
-  }
-}
+void Input() : {} { MatchedClass() <EOF> { Stats.output(); }}
 
 void MatchedClass() : {}
 {
