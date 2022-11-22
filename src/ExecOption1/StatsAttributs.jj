@@ -15,9 +15,9 @@ public class StatsAttributs {
 }
 
 class Stats {
-  	static int prive = 0;
-  	static int publique = 0;
-  	static int protege = 0;
+  	static int privates = 0;
+  	static int publics = 0;
+  	static int protecteds = 0;
   	
 	static HashMap<Keys, Integer> cache = new HashMap<Keys, Integer>();
 	static HashMap<Keys, Integer> buffer = new HashMap<Keys, Integer>();
@@ -65,12 +65,12 @@ void Input() : { }
   {
     String pourcentage = " % ";
     String totalOf = "\t Avec un total de : ";
-	int total = Stats.publique + Stats.prive + Stats.protege;
+	int total = Stats.publics + Stats.privates + Stats.protecteds;
 
 	System.out.println("Total d'attributs : " + total);
-	System.out.println("Pourcentage d'attributs public :  " + Pourcentage(total, Stats.publique) + pourcentage + totalOf + Stats.publique);
-	System.out.println("Pourcentage d'attributs private : " + Pourcentage(total, Stats.prive) + pourcentage + totalOf + Stats.prive);
-	System.out.println("Pourcentage d'attributs protected : " + Pourcentage(total, Stats.protege) + pourcentage + totalOf + Stats.protege);
+	System.out.println("Pourcentage d'attributs public :  " + Pourcentage(total, Stats.publics) + pourcentage + totalOf + Stats.publics);
+	System.out.println("Pourcentage d'attributs private : " + Pourcentage(total, Stats.privates) + pourcentage + totalOf + Stats.privates);
+	System.out.println("Pourcentage d'attributs protected : " + Pourcentage(total, Stats.protecteds) + pourcentage + totalOf + Stats.protecteds);
   }
 }
 
@@ -102,9 +102,9 @@ void MatchedAttribut(Token token) : { }
 {
   Attribut()
   {
-	if (token == null || token.image == "public") { ++Stats.publique; }
-	else if (token.image == "private") { ++Stats.prive; }
-	else if (token.image == "protected") { ++Stats.protege; }
+	if (token == null || token.image == "public") { ++Stats.publics; }
+	else if (token.image == "private") { ++Stats.privates; }
+	else if (token.image == "protected") { ++Stats.protecteds; }
 	else { throw new ParseException("Spécificateur d'accès invalide."); }
   }
 }
