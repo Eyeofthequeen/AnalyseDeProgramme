@@ -1,6 +1,8 @@
 PARSER_BEGIN(Visibility)
 import java.util.*;
 
+enum Keys { PRIVATE, PROTECTED, PUBLIC }
+
 public class Visibility {
     public static void main(String[] args) {
         try {
@@ -13,21 +15,38 @@ public class Visibility {
 }
 
 class Stats {
+  	static Integer nbSimpleAttributes = 0, nbReferencedAttributes = 0;
+  	
 	static ArrayList<String> visibleFor = new ArrayList<String>();
+	static Integer privates = 0, publics = 0, protecteds = 0;
+
 	static Map<String, ArrayList<String>> visibleForByClass = new HashMap<String, ArrayList<String>>();
 	static Map<String, String> specifiersByClass = new HashMap<String, String>();
 
-	static Token specifier = null;
+	static Map<String, Integer> nbSimpleAttributesByClass = new HashMap<String, Integer>();
+	static Map<String, Integer> nbReferencedAttributesByClass = new HashMap<String, Integer>();
+
+	static Map<String, Map<Keys, Integer>> nbAttributesBySpecifierByClass = new HashMap<String, Map<Keys, Integer>>();
 
 	static void compileClasses(String currentClassName, Token specifier) {
+	  	String spec = (specifier == null) ? "public" : specifier.image;
+
 		visibleForByClass.put(currentClassName, visibleFor);
 		visibleFor = new ArrayList<String>();
 
-		if (specifier != null) { 
-			specifiersByClass.put(currentClassName, specifier.image);
-		} else {
-		  	specifiersByClass.put(currentClassName, "public");
-		}
+		specifiersByClass.put(currentClassName, spec);
+
+		nbSimpleAttributesByClass.put(currentClassName, nbSimpleAttributes);
+		nbSimpleAttributes = 0;
+
+		nbReferencedAttributesByClass.put(currentClassName, nbReferencedAttributes);
+		nbReferencedAttributes = 0;
+
+		nbAttributesBySpecifierByClass.put(currentClassName, new HashMap<Keys, Integer>());
+		nbAttributesBySpecifierByClass.get(currentClassName).put(Keys.PUBLIC, publics);
+		nbAttributesBySpecifierByClass.get(currentClassName).put(Keys.PROTECTED, protecteds);
+		nbAttributesBySpecifierByClass.get(currentClassName).put(Keys.PRIVATE, privates);
+		privates = publics = protecteds = 0;
 	}
 
 	static void output() {
@@ -37,13 +56,40 @@ class Stats {
 			ArrayList<String> associations = visibleForByClass.get(name);
 
 			System.out.println("Nom de la classe : " + name);
+			lineOutput();
 			System.out.println("Spécificateur d'accès : " + specifier);
 			System.out.println("Nombre d'associations : " + associations.size());
 			System.out.println("Associations : " + associations);
 
+			Integer total = nbSimpleAttributesByClass.get(name) + nbReferencedAttributesByClass.get(name);
+			System.out.println("\nNombre d'attribut total : " + total);
+			lineOutput();
+			System.out.println("Nombre d'attribut de type simple : " + nbSimpleAttributesByClass.get(name));
+			pourcentage("Pourcentage d'attribut de type simple : ", total, nbSimpleAttributesByClass.get(name));
+			lineOutput();
+			System.out.println("Nombre d'attribut de référence : " + nbReferencedAttributesByClass.get(name));
+			pourcentage("Pourcentage d'attribut de référence : ", total, nbReferencedAttributesByClass.get(name));
+			lineOutput();
+			System.out.println("Nombre d'attribut public : " + nbAttributesBySpecifierByClass.get(name).get(Keys.PUBLIC));
+			pourcentage("Pourcentage d'attribut public : ", total, nbAttributesBySpecifierByClass.get(name).get(Keys.PUBLIC));
+			lineOutput();
+			System.out.println("Nombre d'attribut private : " + nbAttributesBySpecifierByClass.get(name).get(Keys.PRIVATE));
+			pourcentage("Pourcentage d'attribut private : ", total, nbAttributesBySpecifierByClass.get(name).get(Keys.PRIVATE));
+			lineOutput();
+			System.out.println("Nombre d'attribut protected : " + nbAttributesBySpecifierByClass.get(name).get(Keys.PROTECTED));
+			pourcentage("Pourcentage d'attribut protected : ", total, nbAttributesBySpecifierByClass.get(name).get(Keys.PROTECTED));
 
 			System.out.println("\n");
 		}
+	}
+
+	private static void pourcentage(String message, int total, int attributes) {
+		if (total > 0) { System.out.println(message + String.format("%.2f", (float) attributes/total * 100) + "%"); }
+		System.out.println(message + "0%");
+	}
+
+	private static void lineOutput() {
+		System.out.println("------");
 	}
 }
 PARSER_END(Visibility)
@@ -91,25 +137,36 @@ void MatchedBraces(String name, Token specifier) : {}
 	{ Stats.compileClasses(name, specifier); }
 }
 
-void MatchedAttributsOrMethod() : {} { (Prefixer() (MatchedAttribut()| Method())+)* }
+void MatchedAttributsOrMethod() : { Token token; } { (token=Prefixer() (MatchedAttribut(token)| Method())+)* }
 
-void MatchedAttribut() : {} { Attribut() }
+void MatchedAttribut(Token token) : {}
+{
+  Attribut()
+  {
+	if (token == null || token.image == "public") { ++Stats.publics; }
+	else if (token.image == "private") { ++Stats.privates; }
+	else if (token.image == "protected") { ++Stats.protecteds; }
+	else { throw new ParseException("Spécificateur d'accès invalide."); }
+  }
+}
 
 Token AccessSpecifier(): {Token token = null;} { (token = <PUBLIC> | token = <PRIVATE> | token = <PROTECTED> | token = <STATIC>)* { return token; }}
-Token Prefixer(): { Token token = null; } { token = AccessSpecifier() Type() <LOWERCAMEL> { return token; }}
+Token Prefixer(): { Token specifier = null; } { specifier = AccessSpecifier() Type() <LOWERCAMEL> { return specifier; }}
 
 void Method(): {} { Parenthesis() <LBRACE> <RBRACE>} // Inside method not handled
 void Parenthesis(): {} { <LPARENTHESIS> [Params()] <RPARENTHESIS> }
-void Params(): {} { Value() ("," Value())* }
+void Params(): {} { Value(false) ("," Value(false))* }
 void Type(): { } { <UPPERCAMEL> | <LOWERCAMEL> }
 
-void Attribut(): {} { <EQUAL> Value() <SEMICOLON> }
-void Value(): {} { (NewObject() | <LOWERCAMEL> | Number()) }
+void Attribut(): {} { <EQUAL> Value(true) <SEMICOLON> }
+void Value(boolean isAttribute): { boolean isSimpleValue = false; } { (NewObject() | isSimpleValue = IsSimpleValue()) { if(isSimpleValue && isAttribute) { ++Stats.nbSimpleAttributes; } }}
+boolean IsSimpleValue(): { } { <LOWERCAMEL> | Number() { return true; }}
 
 void NewObject(): { Token name; } {
   <NEW> name = <UPPERCAMEL> Parenthesis()
   {
 	Stats.visibleFor.add(name.image);
+	++Stats.nbReferencedAttributes;
   }
 }
 
