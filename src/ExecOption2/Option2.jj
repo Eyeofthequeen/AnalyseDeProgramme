@@ -1,12 +1,14 @@
 PARSER_BEGIN(Visibility)
 import java.util.*;
+import java.io.*;
 
 enum Keys { PRIVATE, PROTECTED, PUBLIC }
 
 public class Visibility {
     public static void main(String[] args) {
         try {
-         	new Visibility(new java.io.StringReader(args[0])).Input();
+          	InputStream inputStream = new FileInputStream(new File("parsing.txt"));
+         	new Visibility(inputStream).Input();
             System.out.println("Syntax is okay");
         } catch (Throwable e) {
             System.out.println("Syntax check failed: " + e.getMessage());
@@ -126,8 +128,8 @@ TOKEN:
 TOKEN:
 {
   <NUMBER: <INTEGER> | <REEL>>
-  | <INTEGER: (["0"-"9"])+>
-  | <REEL: <INTEGER> (<DOT> <INTEGER>)?>
+  | <INTEGER: ("-")? (["0"-"9"])+>
+  | <REEL: ("-")? <INTEGER> (<DOT> <INTEGER>)?>
 }
 
 void Input() : {} { MatchedClass() <EOF> { Stats.output(); }}

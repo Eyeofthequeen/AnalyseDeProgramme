@@ -1,12 +1,14 @@
 PARSER_BEGIN(StatsAttributs)
 import java.util.HashMap;
+import java.io.*;
 
 enum Keys { PRIVATE, PROTECTED, PUBLIC, CLASSES }
 
 public class StatsAttributs {
 	public static void main(String[] args) {
 		try {
-		  new StatsAttributs(new java.io.StringReader(args[0])).Input();
+		  InputStream inputStream = new FileInputStream(new File("parsing.txt"));
+		  new StatsAttributs(inputStream).Input();
 		  System.out.println("Parser executed with success.");
 		} catch (Throwable e) {
 			System.out.println("Syntax check failed : " + e.getMessage());
@@ -66,8 +68,6 @@ TOKEN:
   | <NEW: "new">
 }
 
-// <BASIC: ["a"-"z","A"-"Z","_"] ( ["a"-"z","A"-"Z","_","-","0"-"9"] )* >
-
 TOKEN:
 {
   <LBRACE: "{"> | <RBRACE: "}">
@@ -82,8 +82,8 @@ TOKEN:
 TOKEN:
 {
   <NUMBER: <INTEGER> | <REEL>>
-  | <INTEGER: (["0"-"9"])+>
-  | <REEL: <INTEGER> (<DOT> <INTEGER>)?>
+  | <INTEGER: ("-")? (["0"-"9"])+>
+  | <REEL: ("-")? <INTEGER> (<DOT> <INTEGER>)?>
 }
 
 void Input() : {} { MatchedClass() <EOF> { Stats.output(); }}
