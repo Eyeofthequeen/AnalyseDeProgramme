@@ -1,0 +1,13 @@
+class Test {
+	int i = 0;
+	float i = -10.1;
+	int i = -1;
+}
+
+class Main {
+	protected String str = new String();
+}
+
+class Autre {
+	private Test t = new Test();
+}
