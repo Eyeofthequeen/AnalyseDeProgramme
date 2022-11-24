@@ -23,6 +23,8 @@ private class Main {
 		while (j < 20) {
 			
 		}
+		
+		return 10;
 	}
 }
 

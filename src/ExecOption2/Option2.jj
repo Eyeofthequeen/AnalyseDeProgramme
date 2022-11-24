@@ -335,7 +335,7 @@ void MethodBody() : {}
 {
     (Type() <LOWERCAMEL> Attribut(false))*
   	( statement() )*
-	//( return_statement() )?
+	( return_statement() )?
 }
 
 void statement() :
@@ -349,6 +349,8 @@ void statement() :
 	)
 }
 
+void return_statement(): {} { < RETURN > logical_expression() <SEMICOLON> }
+
 void logical_expression(): {} { comparison_expression() ( logical_connector() comparison_expression() )* }
 
 void comparison_expression(): {} { arithmetic_expression_priority_low() ( comparison_operator() arithmetic_expression_priority_low() )* }
@@ -361,7 +363,7 @@ void unary_expression(): {} { ( unary_operator() )? term() }
 
 void unary_operator(): {} { ( < PREFIX_INCREMENT > | < PREFIX_DECREMENT > | < NOT > ) }
 
-void term(): {} { Value(false) | "(" logical_expression() ")" }
+void term(): {} { Value(false) | <LPARENTHESIS> logical_expression() <RPARENTHESIS> }
 
 void logical_connector(): {} { ( < AND > | < OR > ) }
 
