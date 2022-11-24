@@ -1,3 +1,9 @@
+options
+{
+  static = false;
+  debug_parser = false;
+}
+
 PARSER_BEGIN(Visibility)
 import java.util.*;
 import java.io.*;
@@ -16,89 +22,164 @@ public class Visibility {
     }
 }
 
-class Stats {
-  	static Integer nbSimpleAttributes = 0, nbReferencedAttributes = 0;
-  	static private Integer repeatLong = 15, repeatDefault = 8;
-  	
-	static ArrayList<String> visibleFor = new ArrayList<String>();
-	static Integer privates = 0, publics = 0, protecteds = 0;
-
-	static Map<String, ArrayList<String>> visibleForByClass = new HashMap<String, ArrayList<String>>();
-	static Map<String, String> specifiersByClass = new HashMap<String, String>();
-
-	static Map<String, Integer> nbSimpleAttributesByClass = new HashMap<String, Integer>();
-	static Map<String, Integer> nbReferencedAttributesByClass = new HashMap<String, Integer>();
-
-	static Map<String, Map<Keys, Integer>> nbAttributesBySpecifierByClass = new HashMap<String, Map<Keys, Integer>>();
-
-	static void compileClasses(String currentClassName, Token specifier) {
-	  	String spec = (specifier == null) ? "public" : specifier.image;
-
-		visibleForByClass.put(currentClassName, visibleFor);
-		visibleFor = new ArrayList<String>();
-
-		specifiersByClass.put(currentClassName, spec);
-
-		nbSimpleAttributesByClass.put(currentClassName, nbSimpleAttributes);
-		nbSimpleAttributes = 0;
-
-		nbReferencedAttributesByClass.put(currentClassName, nbReferencedAttributes);
-		nbReferencedAttributes = 0;
-
-		nbAttributesBySpecifierByClass.put(currentClassName, new HashMap<Keys, Integer>());
-		nbAttributesBySpecifierByClass.get(currentClassName).put(Keys.PUBLIC, publics);
-		nbAttributesBySpecifierByClass.get(currentClassName).put(Keys.PROTECTED, protecteds);
-		nbAttributesBySpecifierByClass.get(currentClassName).put(Keys.PRIVATE, privates);
-		privates = publics = protecteds = 0;
-	}
-
-	static void output() {
-		for (Map.Entry<String, String> entry : specifiersByClass.entrySet()) {
-			String name = entry.getKey();
-			String specifier = entry.getValue();
-			ArrayList<String> associations = visibleForByClass.get(name);
-			String pourcentLine = "Pourcentage d'attribut";
-
-			System.out.println("\n");
-			lineOutput(repeatLong);
-			System.out.println("Nom de la classe : " + name);
-			lineOutput(repeatDefault);
-			System.out.println("Spécificateur d'accès : " + specifier);
-			System.out.println("Nombre d'associations : " + associations.size());
-			System.out.println("Associations : " + associations);
-
-			Integer total = nbSimpleAttributesByClass.get(name) + nbReferencedAttributesByClass.get(name);
-			System.out.println("\nNombre d'attribut total : " + total);
-			lineOutput(repeatDefault);
-
-			System.out.println("Nombre d'attribut de type simple : " + nbSimpleAttributesByClass.get(name));
-			pourcentage(pourcentLine + " de type simple : ", total, nbSimpleAttributesByClass.get(name));
-			lineOutput(repeatDefault);
-			System.out.println("Nombre d'attribut de référence : " + nbReferencedAttributesByClass.get(name));
-			pourcentage(pourcentLine + " de référence : ", total, nbReferencedAttributesByClass.get(name));
-			lineOutput(repeatDefault);
-
-			System.out.println("Nombre d'attribut public : " + nbAttributesBySpecifierByClass.get(name).get(Keys.PUBLIC));
-			pourcentage(pourcentLine + "  public : ", total, nbAttributesBySpecifierByClass.get(name).get(Keys.PUBLIC));
-			lineOutput(repeatDefault);
-
-			System.out.println("Nombre d'attribut private : " + nbAttributesBySpecifierByClass.get(name).get(Keys.PRIVATE));
-			pourcentage(pourcentLine + "  private : ", total, nbAttributesBySpecifierByClass.get(name).get(Keys.PRIVATE));
-			lineOutput(repeatDefault);
-
-			System.out.println("Nombre d'attribut protected : " + nbAttributesBySpecifierByClass.get(name).get(Keys.PROTECTED));
-			pourcentage(pourcentLine + "  protected : ", total, nbAttributesBySpecifierByClass.get(name).get(Keys.PROTECTED));
-			lineOutput(repeatLong);
-		}
-	}
-
-	private static void pourcentage(String message, int total, int attributes) {
+class OutputUtils {
+	static void pourcentage(String message, int total, int attributes) {
 		if (total > 0) { System.out.println(message + String.format("%.2f", (float) attributes/total * 100) + "%"); }
 		else { System.out.println(message + "0%"); }
 	}
 
-	private static void lineOutput(Integer repeat) {
+	static void lineOutput(Integer repeat) {
 		System.out.println(new String(new char[repeat]).replace("\0", "-"));
+	}
+}
+
+class TypeAttributeCounter {
+  	private static boolean isReferencedAttribute;
+  	private static Integer nbSimpleAttributes, nbReferencedAttributes;
+  	static Map<String, Integer> nbSimpleAttributesByClass = new HashMap<String, Integer>();
+	static Map<String, Integer> nbReferencedAttributesByClass = new HashMap<String, Integer>();
+
+	TypeAttributeCounter() {
+	  	isReferencedAttribute = false;
+		nbSimpleAttributes =  0;
+		nbReferencedAttributes = 0;
+		nbSimpleAttributesByClass = new HashMap<String, Integer>();
+		nbReferencedAttributesByClass = new HashMap<String, Integer>();
+	}
+
+	static void incrementSimpleAttributes() {
+		++nbSimpleAttributes;
+	}
+
+	static void incrementReferencedAttributes() {
+		++nbReferencedAttributes;
+		isReferencedAttribute = true;
+	}
+
+	static int getTotalForClass(String name) {
+		return nbSimpleAttributesByClass.get(name) + nbReferencedAttributesByClass.get(name);
+	}
+
+	static boolean getIsReferencedAttribute() { return isReferencedAttribute; }
+
+	static void reset() { nbSimpleAttributes = nbReferencedAttributes = 0; }
+
+	static void compile(String currentClassName) {
+		nbSimpleAttributesByClass.put(currentClassName, nbSimpleAttributes);
+		nbReferencedAttributesByClass.put(currentClassName, nbReferencedAttributes);
+		reset();
+	}
+
+	static void resetIsReferenced() { isReferencedAttribute = false; }
+
+	static void output(String name) {
+	  	Integer lineWidth = 15;
+	  	Integer total = getTotalForClass(name);
+	  	String pourcentLine = "Pourcentage d'attribut";
+
+		System.out.println("\nNombre d'attribut total : " + total);
+		OutputUtils.lineOutput(lineWidth);
+
+		System.out.println("Nombre d'attribut de type simple : " + nbSimpleAttributesByClass.get(name));
+		OutputUtils.pourcentage(pourcentLine + " de type simple : ", total, nbSimpleAttributesByClass.get(name));
+		OutputUtils.lineOutput(lineWidth);
+
+		System.out.println("Nombre d'attribut de référence : " + nbReferencedAttributesByClass.get(name));
+		OutputUtils.pourcentage(pourcentLine + " de référence : ", total, nbReferencedAttributesByClass.get(name));
+		OutputUtils.lineOutput(lineWidth);
+	}
+}
+
+class SpecifierAttributeCounter {
+	static Integer privates, publics, protecteds;
+	static Map<String, Map<Keys, Integer>> nbAttributesBySpecifierByClass = new HashMap<String, Map<Keys, Integer>>();
+
+	SpecifierAttributeCounter() {
+		privates = 0;
+		publics = 0;
+		protecteds = 0;
+	}
+
+	static void increment(Keys key) {
+		switch (key) {
+			case PRIVATE: ++privates; break;
+			case PUBLIC: ++publics; break;
+			case PROTECTED: ++protecteds; break;
+		}
+	}
+
+	static void reset() { privates = publics = protecteds = 0; }
+
+	static void compile(String name) {
+	  	nbAttributesBySpecifierByClass.put(name, new HashMap<Keys, Integer>());
+		nbAttributesBySpecifierByClass.get(name).put(Keys.PUBLIC, publics);
+		nbAttributesBySpecifierByClass.get(name).put(Keys.PROTECTED, protecteds);
+		nbAttributesBySpecifierByClass.get(name).put(Keys.PRIVATE, privates);
+		reset();
+	}
+
+	static void output(String name, Integer total) {
+	  	Integer repeatLong = 15, repeatDefault = 8;
+	  	String pourcentLine = "Pourcentage d'attribut";
+	  
+		System.out.println("Nombre d'attribut public : " + nbAttributesBySpecifierByClass.get(name).get(Keys.PUBLIC));
+		OutputUtils.pourcentage(pourcentLine + "  public : ", total, nbAttributesBySpecifierByClass.get(name).get(Keys.PUBLIC));
+		OutputUtils.lineOutput(repeatDefault);
+
+		System.out.println("Nombre d'attribut private : " + nbAttributesBySpecifierByClass.get(name).get(Keys.PRIVATE));
+		OutputUtils.pourcentage(pourcentLine + "  private : ", total, nbAttributesBySpecifierByClass.get(name).get(Keys.PRIVATE));
+		OutputUtils.lineOutput(repeatDefault);
+
+		System.out.println("Nombre d'attribut protected : " + nbAttributesBySpecifierByClass.get(name).get(Keys.PROTECTED));
+		OutputUtils.pourcentage(pourcentLine + "  protected : ", total, nbAttributesBySpecifierByClass.get(name).get(Keys.PROTECTED));
+		OutputUtils.lineOutput(repeatLong);
+	}
+}
+
+class Stats {
+	static TypeAttributeCounter typeAttributeCounter = new TypeAttributeCounter();
+	static SpecifierAttributeCounter specifierAttributeCounter = new SpecifierAttributeCounter();
+  	
+	static ArrayList<String> associatedWith = new ArrayList<String>();
+
+	static ArrayList<String> allDeclaredClasses = new ArrayList<String>();
+
+	static Map<String, ArrayList<String>> associationsByClass = new HashMap<String, ArrayList<String>>();
+	static Map<String, String> specifiersByClass = new HashMap<String, String>();
+
+	static void compileClasses(String currentClassName, Token specifier) {
+	  	String spec = (specifier == null) ? "public" : specifier.image;
+	  	allDeclaredClasses.add(currentClassName);
+
+		associationsByClass.put(currentClassName, associatedWith);
+		associatedWith = new ArrayList<String>();
+
+		specifiersByClass.put(currentClassName, spec);
+
+		typeAttributeCounter.compile(currentClassName);
+		specifierAttributeCounter.compile(currentClassName);
+	}
+
+	static void output() {
+	  	Integer repeatLong = 15, repeatDefault = 8;
+
+		for (Map.Entry<String, String> entry : specifiersByClass.entrySet()) {
+			String name = entry.getKey();
+			String specifier = entry.getValue();
+			ArrayList<String> associations = associationsByClass.get(name);
+			String pourcentLine = "Pourcentage d'attribut";
+
+			System.out.println("\n");
+			OutputUtils.lineOutput(repeatLong);
+			System.out.println("Nom de la classe : " + name);
+			OutputUtils.lineOutput(repeatDefault);
+			System.out.println("Spécificateur d'accès : " + specifier);
+			System.out.println("Nombre d'associations : " + associations.size());
+			System.out.println("Associations : " + associations);
+
+			typeAttributeCounter.output(name);
+			specifierAttributeCounter.output(name, typeAttributeCounter.getTotalForClass(name));
+		}
 	}
 }
 PARSER_END(Visibility)
@@ -114,6 +195,15 @@ TOKEN:
   | <NEW: "new">
 }
 
+TOKEN :
+{
+  < INT : "int" >
+| < DOUBLE : "double" >
+| < BOOLEAN : "bool" >
+| < VOID : "void" >
+| < FLOAT: "float">
+}
+
 TOKEN:
 {
   <LBRACE: "{"> | <RBRACE: "}">
@@ -123,6 +213,7 @@ TOKEN:
   | <SEMICOLON: ";">
   | <UPPERCAMEL: (["A"-"Z"])+(["a"-"z","A"-"Z", "0"-"9", "_"])*>
   | <LOWERCAMEL: (["a"-"z"])+(["a"-"z","A"-"Z", "0"-"9", "_"])*>
+  | <STRING: "\"" (<UPPERCAMEL> | <LOWERCAMEL>)? "\"">
 }
 
 TOKEN:
@@ -131,6 +222,7 @@ TOKEN:
   | <INTEGER: ("-")? (["0"-"9"])+>
   | <REEL: ("-")? <INTEGER> (<DOT> <INTEGER>)?>
 }
+
 
 void Input() : {} { MatchedClass() <EOF> { Stats.output(); }}
 
@@ -152,9 +244,9 @@ void MatchedAttribut(Token token) : {}
 {
   Attribut()
   {
-	if (token == null || token.image == "public") { ++Stats.publics; }
-	else if (token.image == "private") { ++Stats.privates; }
-	else if (token.image == "protected") { ++Stats.protecteds; }
+	if (token == null || token.image == "public") { Stats.specifierAttributeCounter.increment(Keys.PUBLIC); }
+	else if (token.image == "private") { Stats.specifierAttributeCounter.increment(Keys.PRIVATE); }
+	else if (token.image == "protected") { Stats.specifierAttributeCounter.increment(Keys.PROTECTED); }
 	else { throw new ParseException("Spécificateur d'accès invalide."); }
   }
 }
@@ -162,22 +254,37 @@ void MatchedAttribut(Token token) : {}
 Token AccessSpecifier(): {Token token = null;} { (token = <PUBLIC> | token = <PRIVATE> | token = <PROTECTED> | token = <STATIC>)* { return token; }}
 Token Prefixer(): { Token specifier = null; } { specifier = AccessSpecifier() Type() <LOWERCAMEL> { return specifier; }}
 
-void Method(): {} { Parenthesis() <LBRACE> <RBRACE>} // Inside method not handled
-void Parenthesis(): {} { <LPARENTHESIS> [Params()] <RPARENTHESIS> }
-void Params(): {} { Value(false) ("," Value(false))* }
-void Type(): { } { <UPPERCAMEL> | <LOWERCAMEL> }
+void Method(): {} { DeclarationParams() <LBRACE> <RBRACE>}
 
-void Attribut(): {} { <EQUAL> Value(true) <SEMICOLON> }
-void Value(boolean isAttribute): { boolean isSimpleValue = false; } { (NewObject() | isSimpleValue = IsSimpleValue()) { if(isSimpleValue && isAttribute) { ++Stats.nbSimpleAttributes; } }}
-boolean IsSimpleValue(): { } { <LOWERCAMEL> | Number() { return true; }}
+void Params(): {} { <LPARENTHESIS> [Param() ("," Param())*] <RPARENTHESIS> }
+void DeclarationParams() : {} { <LPARENTHESIS> [Type() <LOWERCAMEL> ("," Type() <LOWERCAMEL>)*] <RPARENTHESIS> }
+void Param(): { } { Value(false) }
 
-void NewObject(): { Token name; } {
-  <NEW> name = <UPPERCAMEL> Parenthesis()
+void Type(): { Token token = null; }
+{
+  <INT> | <DOUBLE> | <VOID> | <BOOLEAN> | <FLOAT> | token = <UPPERCAMEL>
   {
-	Stats.visibleFor.add(name.image);
-	++Stats.nbReferencedAttributes;
+  	if (token != null) {
+		Stats.associatedWith.add(token.image);
+		Stats.typeAttributeCounter.incrementReferencedAttributes();
+  	}
   }
 }
+
+void Attribut(): {} { <EQUAL> Value(true) <SEMICOLON> }
+void Value(boolean isAttribute): { boolean isSimpleValue = false; }
+{
+  (NewObject() | <STRING> | isSimpleValue = IsSimpleValue())
+  {
+    if(isSimpleValue && isAttribute && !Stats.typeAttributeCounter.getIsReferencedAttribute()) {
+      Stats.typeAttributeCounter.incrementSimpleAttributes();
+  	}
+  	Stats.typeAttributeCounter.resetIsReferenced();
+  }
+}
+boolean IsSimpleValue(): { } { <LOWERCAMEL> | Number() { return true; }}
+
+void NewObject(): { Token name; } { <NEW> name = <UPPERCAMEL> Params() }
 
 void Number(): {}
 {
