@@ -1,13 +1,33 @@
 class Test {
-	int i = 0;
-	float i = -10.1;
-	int i = -1;
+	String str = "something";
+	float x = -10.1;
+	int n = -1;
+	private double j = 10.1;
+	Integer i = 100;
+	
+	public void main(int val) {
+		int chiffre = 10;
+		
+		if (10 == 2) {
+			n = 2;
+		}
+	}
 }
 
-class Main {
-	protected String str = new String();
+private class Main {
+	protected String str = new String("something");
+	int j = 10;
+	
+	public void something(int val) {
+	
+		while (j < 20) {
+			
+		}
+	}
 }
 
 class Autre {
-	private Test t = new Test();
+	private Test t = new Test(10, 10, 100);
+	bool isActive = false;
+	int i = 10 + 1 / (10 + 2);
 }

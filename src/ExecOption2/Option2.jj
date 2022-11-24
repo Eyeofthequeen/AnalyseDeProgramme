@@ -192,14 +192,23 @@ TOKEN:
   | <PUBLIC: "public">
   | <STATIC: "static">
   | <CLASS: "class">
-  | <NEW: "new">
+}
+
+TOKEN :
+{
+	  < IF : "if" >
+	| < ELSE : "else" >
+	| < WHILE : "while" >
+	| <BOOLEAN: "true" | "false">
+	| < RETURN : "return" >
+	| < NEW : "new" >
 }
 
 TOKEN :
 {
   < INT : "int" >
 | < DOUBLE : "double" >
-| < BOOLEAN : "bool" >
+| < BOOL : "bool" >
 | < VOID : "void" >
 | < FLOAT: "float">
 }
@@ -208,12 +217,34 @@ TOKEN:
 {
   <LBRACE: "{"> | <RBRACE: "}">
   | <LPARENTHESIS: "("> | <RPARENTHESIS: ")">
-  | <EQUAL: "=">
   | <DOT: ".">
   | <SEMICOLON: ";">
   | <UPPERCAMEL: (["A"-"Z"])+(["a"-"z","A"-"Z", "0"-"9", "_"])*>
   | <LOWERCAMEL: (["a"-"z"])+(["a"-"z","A"-"Z", "0"-"9", "_"])*>
   | <STRING: "\"" (<UPPERCAMEL> | <LOWERCAMEL>)? "\"">
+}
+
+TOKEN : /* OPERATEURS */
+{
+	< PLUS : "+" >
+	| < MINUS : "-" >
+	| < MULTIPLY : "*" >
+	| < DIVIDE : "/" >
+	| < MODULO : "%" >
+	| < ASSIGN : "=" >
+	| < EQUAL : "==" >
+	| < NOT_EQUAL : "<>" >
+	| < GREATER : ">" >
+	| < GREATER_OR_EQUAL : ">=" >
+	| < LOWER : "<" >
+	| < LOWER_OR_EQUAL : "<=" >
+	| < AND : "&&" >
+	| < OR : "||" >
+	| < NOT : "!" >
+	| < PREFIX_INCREMENT : "++" >
+	| < PREFIX_DECREMENT : "--" >
+	//| <OPERATEURTERME: (<PLUS> | <MINUS>)>
+    //| <OPERATEURFACTEUR: (<MULTIPLY> | <DIVIDE> | <MODULO> )>
 }
 
 TOKEN:
@@ -242,7 +273,7 @@ void MatchedAttributsOrMethod() : { Token token; } { (token=Prefixer() (MatchedA
 
 void MatchedAttribut(Token token) : {}
 {
-  Attribut()
+  Attribut(true)
   {
 	if (token == null || token.image == "public") { Stats.specifierAttributeCounter.increment(Keys.PUBLIC); }
 	else if (token.image == "private") { Stats.specifierAttributeCounter.increment(Keys.PRIVATE); }
@@ -254,15 +285,13 @@ void MatchedAttribut(Token token) : {}
 Token AccessSpecifier(): {Token token = null;} { (token = <PUBLIC> | token = <PRIVATE> | token = <PROTECTED> | token = <STATIC>)* { return token; }}
 Token Prefixer(): { Token specifier = null; } { specifier = AccessSpecifier() Type() <LOWERCAMEL> { return specifier; }}
 
-void Method(): {} { DeclarationParams() <LBRACE> <RBRACE>}
-
 void Params(): {} { <LPARENTHESIS> [Param() ("," Param())*] <RPARENTHESIS> }
 void DeclarationParams() : {} { <LPARENTHESIS> [Type() <LOWERCAMEL> ("," Type() <LOWERCAMEL>)*] <RPARENTHESIS> }
 void Param(): { } { Value(false) }
 
 void Type(): { Token token = null; }
 {
-  <INT> | <DOUBLE> | <VOID> | <BOOLEAN> | <FLOAT> | token = <UPPERCAMEL>
+  <INT> | <DOUBLE> | <VOID> | <BOOL> | <FLOAT> | token = <UPPERCAMEL>
   {
   	if (token != null) {
 		Stats.associatedWith.add(token.image);
@@ -271,18 +300,24 @@ void Type(): { Token token = null; }
   }
 }
 
-void Attribut(): {} { <EQUAL> Value(true) <SEMICOLON> }
-void Value(boolean isAttribute): { boolean isSimpleValue = false; }
+void Attribut(boolean isClassAttribute): {} { <ASSIGN> Expression_arithmetique(isClassAttribute) <SEMICOLON> }
+void Value(boolean isClassAttribute): { boolean isSimpleValue = false; }
 {
-  (NewObject() | <STRING> | isSimpleValue = IsSimpleValue())
+  ( NewObject() | <STRING> | isSimpleValue = IsBoolean() | isSimpleValue = IsNum() | isSimpleValue = IsFunctionCall() )
   {
-    if(isSimpleValue && isAttribute && !Stats.typeAttributeCounter.getIsReferencedAttribute()) {
+    if((isSimpleValue) && isClassAttribute && !Stats.typeAttributeCounter.getIsReferencedAttribute()) {
       Stats.typeAttributeCounter.incrementSimpleAttributes();
   	}
   	Stats.typeAttributeCounter.resetIsReferenced();
   }
 }
-boolean IsSimpleValue(): { } { <LOWERCAMEL> | Number() { return true; }}
+boolean IsNum(): { } { Number() { return true; }}
+boolean IsBoolean(): { } { <BOOLEAN> { return true; }}
+boolean IsFunctionCall(): {} { <LOWERCAMEL> { return true; }}
+
+void Expression_arithmetique(boolean isClassAttribute): { } {Terme(isClassAttribute) ((<PLUS> | <MINUS>) Terme(false))*}
+void Terme(boolean isClassAttribute) : { } { Facteur(isClassAttribute) ((<MULTIPLY> | <DIVIDE> | <MODULO> ) Facteur(false))* }
+void Facteur(boolean isClassAttribute): { } { Value(isClassAttribute) | <LPARENTHESIS> Expression_arithmetique(false) <RPARENTHESIS>}
 
 void NewObject(): { Token name; } { <NEW> name = <UPPERCAMEL> Params() }
 
@@ -296,3 +331,52 @@ void Number(): {}
      }
   }
 }
+
+void Method(): {} { DeclarationParams() <LBRACE> MethodBody() <RBRACE>}
+void MethodBody() : {}
+{
+    (Type() <LOWERCAMEL> Attribut(false))*
+  	( statement() )*
+	//( return_statement() )?
+}
+
+void statement() :
+{
+}
+{
+	(
+	  	<LOWERCAMEL> Attribut(false)
+		| conditional_statement()
+		| while_loop()
+	)
+}
+
+void logical_expression(): {} { comparison_expression() ( logical_connector() comparison_expression() )* }
+
+void comparison_expression(): {} { arithmetic_expression_priority_low() ( comparison_operator() arithmetic_expression_priority_low() )* }
+
+void arithmetic_expression_priority_low(): {} { arithmetic_expression() ( arithmetic_operation_piority_low() arithmetic_expression() )*}
+
+void arithmetic_expression(): {} { unary_expression() ( arithmetic_operation() unary_expression() )* }
+
+void unary_expression(): {} { ( unary_operator() )? term() }
+
+void unary_operator(): {} { ( < PREFIX_INCREMENT > | < PREFIX_DECREMENT > | < NOT > ) }
+
+void term(): {} { Value(false) | "(" logical_expression() ")" }
+
+void logical_connector(): {} { ( < AND > | < OR > ) }
+
+void arithmetic_operation(): {} { ( < MULTIPLY > | < DIVIDE > | < MODULO > ) }
+
+void arithmetic_operation_piority_low(): {} { ( < PLUS > | < MINUS > ) }
+
+void comparison_operator(): {} { ( < EQUAL > | < NOT_EQUAL > | < GREATER > | < GREATER_OR_EQUAL > | < LOWER > | < LOWER_OR_EQUAL > 	) }
+
+void conditional_statement(): {}
+{
+	< IF > "(" logical_expression()	")" "{" ( statement() )*
+	( LOOKAHEAD(2) "}" < ELSE > "{" ( statement() )* )? "}"
+}
+
+void while_loop(): {} { < WHILE > "(" logical_expression() ")" "{" (statement())* "}" }
