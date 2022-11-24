@@ -335,7 +335,7 @@ void MethodBody() : {}
 {
     (Type() <LOWERCAMEL> Attribut(false))*
   	( statement() )*
-	( return_statement() )?
+	( ReturnStatement() )?
 }
 
 void statement() :
@@ -349,7 +349,7 @@ void statement() :
 	)
 }
 
-void return_statement(): {} { < RETURN > logical_expression() <SEMICOLON> }
+void ReturnStatement(): {} { < RETURN > logical_expression() <SEMICOLON> }
 
 void logical_expression(): {} { comparison_expression() ( logical_connector() comparison_expression() )* }
 
