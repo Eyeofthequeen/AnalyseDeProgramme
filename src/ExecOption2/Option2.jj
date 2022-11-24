@@ -243,8 +243,6 @@ TOKEN : /* OPERATEURS */
 	| < NOT : "!" >
 	| < PREFIX_INCREMENT : "++" >
 	| < PREFIX_DECREMENT : "--" >
-	//| <OPERATEURTERME: (<PLUS> | <MINUS>)>
-    //| <OPERATEURFACTEUR: (<MULTIPLY> | <DIVIDE> | <MODULO> )>
 }
 
 TOKEN:
