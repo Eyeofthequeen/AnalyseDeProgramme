@@ -10,7 +10,7 @@ OUTPUTDIR := out
 
 #SOURCES := StatsAttributs.jj
 #SOURCES := Test.jj
-SOURCES := ExecOption3/ReverseEngineering.jj
+SOURCES := ExecOption3/Option3.jj
 
 .PHONY: all clean $(SOURCES)
 

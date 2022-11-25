@@ -7,6 +7,7 @@ interface J {
 }
 
 public class MyString extends String {
+    public int r = 1;
     private StringBuilder builder = new StringBuilder();
 }
 
@@ -20,11 +21,8 @@ public abstract class Test {
 class T implements I {
     private float bruh;
     public void test() {
-        public int i = -1;
-		public float j = 1.0;
-		for(; i < 0; i++) {
-			j += 3.2;
-		}
+        int i = -1;
+	    float j = 1.0;
     }
     protected int i;
 }
@@ -39,7 +37,7 @@ public class Qwerty {
     private Other other;
     private I variable;
 
-    public J function(T, I) {
-        return new Other();
+    public J function(T t, I i) {
+        return other;
     }
 }
