@@ -2,7 +2,7 @@ SOURCEDIR := .
 OBJECTSDIR := obj
 OUTPUTDIR := out
 
-SOURCES := $(shell find $(SOURCEDIR) -type f -name "*.jj")
+#SOURCES := $(shell find $(SOURCEDIR) -type f -name "*.jj")
 
 #OUTPUTFILES := $(subst jj,java, $(SOURCES))
 #SUBFOLDER := $(addprefix $(OUTPUTDIR)/, $(addsuffix /,$(basename $(notdir $(SOURCES)))))
@@ -10,6 +10,7 @@ SOURCES := $(shell find $(SOURCEDIR) -type f -name "*.jj")
 
 #SOURCES := StatsAttributs.jj
 #SOURCES := Test.jj
+SOURCES := ExecOption3/ReverseEngineering.jj
 
 .PHONY: all clean $(SOURCES)
 
@@ -20,14 +21,14 @@ all: $(SOURCES)
 $(SOURCES):
 	@echo
 	@echo Removing old files from $@...
-	-rm -r $(OBJECTSDIR)/$(basename $@)/*
-	-rm -r $(OUTPUTDIR)/$(basename $@)/*
+	-rm -r $(OBJECTSDIR)/$(basename $(notdir $@))/*
+	-rm -r $(OUTPUTDIR)/$(basename $(notdir $@))/*
 	@echo Parsing $@...
-	javacc -output_directory:$(OBJECTSDIR)/$(basename $@) $@
+	javacc -output_directory:$(OBJECTSDIR)/$(basename $(notdir $@)) $@
 	@echo Compilling $@...
-	javac -d $(OUTPUTDIR)/$(basename $@) $(OBJECTSDIR)/$(basename $@)/*.java
+	javac -d $(OUTPUTDIR)/$(basename $(notdir $@)) $(OBJECTSDIR)/$(basename $(notdir $@))/*.java
 	@echo Adding test file to directory...
-	-cp $(SOURCEDIR)/testfile $(OUTPUTDIR)/$(basename $@)/testfile
+	-cp $(SOURCEDIR)/testfile $(OUTPUTDIR)/$(basename $(notdir $@))/testfile
 
 clean:
 	-@rm -r $(OBJECTSDIR)

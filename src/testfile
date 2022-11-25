@@ -6,6 +6,10 @@ interface J {
     public void guh();
 }
 
+public class MyString extends String {
+    private StringBuilder builder = new StringBuilder();
+}
+
 public abstract class Test {
     private int w = 10;
     public int x = 0;

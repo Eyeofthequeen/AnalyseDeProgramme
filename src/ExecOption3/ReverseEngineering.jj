@@ -115,8 +115,10 @@ void Attribute(String from, Set<String> names, List<Link> links) : {Token type;}
     [Visibility()] type=<WORD> <WORD> [<EQUAL> (<WORD> | <NUM>)] <SEMI_COLON>
     {
         String name = type.image;
-        if (names.contains(name))
+        // if starts with capital letter
+        if (name.charAt(0) == name.toUpperCase().charAt(0)) {
             links.add(new Link(from, name, LinkType.ASSOCIATION));
+        }
     }
 }
 
