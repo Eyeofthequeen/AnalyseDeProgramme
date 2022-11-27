@@ -80,8 +80,7 @@ SPECIAL_TOKEN : {
 }
 
 TOKEN: { <LBRACE: "{"> | <RBRACE: "}"> | <PRIVATE: "private"> | <PROTECTED: "protected"> | <PUBLIC: "public"> | <STATIC: "static"> | <ABSTRACT: "abstract"> | <CLASS: "class"> | <INTERFACE: "interface">
-        | <EXTENDS: "extends"> | <IMPLEMENTS: "implements"> | <COMMA: ","> | <L_PARENTHESIS: "("> | <R_PARENTHESIS: ")"> | <SEMI_COLON: ";">
-        }
+        | <EXTENDS: "extends"> | <IMPLEMENTS: "implements"> | <COMMA: ","> | <L_PARENTHESIS: "("> | <R_PARENTHESIS: ")"> | <SEMI_COLON: ";">  | <DOT : "."> }
 
 TOKEN : /* OPERATEURS */
 {
@@ -222,141 +221,143 @@ void Attribute(String from, Set<String> names, List<Link> links) : {Token type;}
 void function() : {}
 {
     [Visibility()]
-	( type() | < VOID > )
-	< IDENTIFIER > "(" (parameter_declaration() ("," parameter_declaration())*)? ")"
-	(("{" function_body() "}") | ";")
+    ( type() | < VOID > )
+    < IDENTIFIER > "(" (parameter_declaration() ("," parameter_declaration())*)? ")"
+    (("{" function_body() "}") | ";")
 }
 
 void parameter_declaration() : {}
 {
-	type() < IDENTIFIER >
+    type() < IDENTIFIER >
 }
 
+// FIXME: Bug where JavaCC mixes variable_declaration() and statement() when calling function alone
+//  (ex: calling builder.toString() without assigning it or returning it)
 void function_body() : {}
 {
     ( variable_declaration() ";" )*
-  	( statement() )*
-	( return_statement() )?
+    ( statement() )*
+    ( return_statement() )?
 }
 
 void statement() : {}
 {
-	(
-        LOOKAHEAD(2)
-        assignment() | function_call()
-    ) ";"
+    ( LOOKAHEAD(2)
+    assignment() | function_call() ) ";"
     | conditional_statement()
     | while_loop()
 }
 
 void variable_declaration() : {}
 {
-	type() assignment()	("," assignment() )*
+    type() assignment() ("," assignment() )*
 }
 
 void litteral_value() : {}
 {
-	< INTEGER >
+    < INTEGER >
     | < DECIMAL >
     | boolean_value()
 }
 
 void boolean_value() : {}
 {
-	< TRUE > | < FALSE >
+    < TRUE > | < FALSE >
 }
 
-void type() : {}
+String type() : {Token type;}
 {
-    <IDENTIFIER>
+    type=<IDENTIFIER>
+    {return type.image;}
 }
 
 void conditional_statement() : {}
 {
-	< IF > "(" logical_expression()	")" "{" ( statement() )*
-	( LOOKAHEAD(2) "}" < ELSE > "{" ( statement() )* )? "}"
+    < IF > "(" logical_expression()	")" "{" ( statement() )*
+    ( LOOKAHEAD(2) "}" < ELSE > "{" ( statement() )* )? "}"
 }
 
 void logical_expression() : {}
 {
- 	comparison_expression() ( logical_connector() comparison_expression() )*
+    comparison_expression() ( logical_connector() comparison_expression() )*
 }
 
 void comparison_expression() : {}
 {
-	 arithmetic_expression_priority_low() ( comparison_operator() arithmetic_expression_priority_low() )*
+    arithmetic_expression_priority_low() ( comparison_operator() arithmetic_expression_priority_low() )*
 }
 
 void arithmetic_expression_priority_low() : {}
 {
-	arithmetic_expression() ( arithmetic_operation_piority_low() arithmetic_expression() )*
+    arithmetic_expression() ( arithmetic_operation_piority_low() arithmetic_expression() )*
 }
 
 void arithmetic_expression() : {}
 {
-	unary_expression() ( arithmetic_operation() unary_expression() )*
+    unary_expression() ( arithmetic_operation() unary_expression() )*
 }
 
 void unary_expression() : {}
 {
-	( unary_operator() )? term()
+    ( unary_operator() )? term()
 }
 
 void term() : {}
 {
-	value() | "(" logical_expression() ")"
+    value() | "(" logical_expression() ")"
 }
 
 void unary_operator() : {}
 {
-	< PREFIX_INCREMENT >
+    < PREFIX_INCREMENT >
     | < PREFIX_DECREMENT >
     | < NOT >
 }
 
 void value() : {}
 {
-	LOOKAHEAD(2) function_call()
+    LOOKAHEAD(2) function_call()
     | < IDENTIFIER >
     | litteral_value()
 }
 
 void arithmetic_operation() : {}
 {
-	< MULTIPLY > | < DIVIDE > | < MODULO >
+    < MULTIPLY > | < DIVIDE > | < MODULO >
 }
 
 void arithmetic_operation_piority_low() : {}
 {
-	< PLUS > | < MINUS >
+    < PLUS > | < MINUS >
 }
 
 void comparison_operator() : {}
 {
-  	< EQUAL > | < NOT_EQUAL > | < GREATER > | < GREATER_OR_EQUAL > | < LOWER > | < LOWER_OR_EQUAL >
+    < EQUAL > | < NOT_EQUAL > | < GREATER > | < GREATER_OR_EQUAL > | < LOWER > | < LOWER_OR_EQUAL >
 }
 
 void logical_connector() : {}
 {
-	< AND > | < OR >
+    < AND > | < OR >
 }
 
 void function_call() : {}
 {
-	< IDENTIFIER > "(" (logical_expression() ("," logical_expression())*)? ")"
+    [<IDENTIFIER> <DOT>] < IDENTIFIER > "(" (logical_expression() ("," logical_expression())*)? ")"
 }
 
-void assignment() : {}
+String assignment() : {Token name;}
 {
-	<IDENTIFIER> < ASSIGN > logical_expression()
+    name=<IDENTIFIER> < ASSIGN > logical_expression()
+    {return name.image;}
 }
 
 void while_loop() : {}
 {
-	< WHILE > "(" logical_expression() ")" "{" (statement())* "}"
+    < WHILE > "(" logical_expression() ")" "{" (statement())* "}"
 }
 
 void return_statement() : {}
 {
-	< RETURN > logical_expression() ";"
+    < RETURN > logical_expression() ";"
 }
