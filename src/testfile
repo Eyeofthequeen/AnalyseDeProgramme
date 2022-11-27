@@ -9,6 +9,9 @@ interface J {
 public class MyString extends String {
     public int r = 1;
     private StringBuilder builder = new StringBuilder();
+    public String toString() {
+        return builder.toString();
+    }
 }
 
 public abstract class Test {
@@ -38,6 +41,8 @@ public class Qwerty {
     private I variable;
 
     public J function(T t, I i) {
-        return other;
+        String test = other.toString();
+        int i = other.guh();
+        float test = variable.test();
     }
 }
