@@ -136,6 +136,39 @@ class SpecifierAttributeCounter {
 	}
 }
 
+class VisibilityLister {
+  	static ArrayList<String> allDeclarations;
+  	static Map<String, ArrayList<String>> associationsByClass;
+  	private static ArrayList<String> permanentVisibilities;
+
+	VisibilityLister(ArrayList<String> allDeclarations, Map<String, ArrayList<String>> associationsByClass, String name, String specifier) {
+		this.allDeclarations = allDeclarations;
+		this.associationsByClass = associationsByClass;
+		permanentVisibilities = new ArrayList<String>();
+		compile(name, specifier);
+	}
+
+
+	private static void compile(String name, String specifier) {
+		for (Map.Entry<String, ArrayList<String>> entry : associationsByClass.entrySet()) {
+			String entryClassKey = entry.getKey();
+			ArrayList<String> entryAssociations = entry.getValue();
+
+			if (entryClassKey.equals(name)) { continue; }
+
+			for (String association : entryAssociations) {
+				if (association.equals(name)) {				  
+				  	 permanentVisibilities.add(entryClassKey);
+				}
+			}
+		}
+	}
+
+	static void output() {
+		System.out.println("Visible for : " + permanentVisibilities);
+	}
+}
+
 class Stats {
 	static TypeAttributeCounter typeAttributeCounter = new TypeAttributeCounter();
 	static SpecifierAttributeCounter specifierAttributeCounter = new SpecifierAttributeCounter();
@@ -166,6 +199,7 @@ class Stats {
 		for (Map.Entry<String, String> entry : specifiersByClass.entrySet()) {
 			String name = entry.getKey();
 			String specifier = entry.getValue();
+			VisibilityLister visibilityLister = new VisibilityLister(allDeclaredClasses, associationsByClass, name, specifiersByClass.get(name));
 			ArrayList<String> associations = associationsByClass.get(name);
 			String pourcentLine = "Pourcentage d'attribut";
 
@@ -176,6 +210,8 @@ class Stats {
 			System.out.println("Spécificateur d'accès : " + specifier);
 			System.out.println("Nombre d'associations : " + associations.size());
 			System.out.println("Associations : " + associations);
+
+			visibilityLister.output();
 
 			typeAttributeCounter.output(name);
 			specifierAttributeCounter.output(name, typeAttributeCounter.getTotalForClass(name));

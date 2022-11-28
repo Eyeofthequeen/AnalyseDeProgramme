@@ -17,6 +17,7 @@ class Test {
 private class Main {
 	protected String str = new String("something");
 	int j = 10;
+	Autre autre = new Autre();
 	
 	public void something(int val) {
 	
