@@ -33,4 +33,5 @@ class Autre {
 	private Test t = new Test(10, 10, 100);
 	bool isActive = false;
 	int i = 10 + 1 / (10 + 2);
+	protected bool isProtected = true;
 }

@@ -34,10 +34,10 @@ class OutputUtils {
 }
 
 class TypeAttributeCounter {
-  	private static boolean isReferencedAttribute;
-  	private static Integer nbSimpleAttributes, nbReferencedAttributes;
-  	static Map<String, Integer> nbSimpleAttributesByClass = new HashMap<String, Integer>();
-	static Map<String, Integer> nbReferencedAttributesByClass = new HashMap<String, Integer>();
+  	private boolean isReferencedAttribute;
+  	private Integer nbSimpleAttributes, nbReferencedAttributes;
+  	Map<String, Integer> nbSimpleAttributesByClass = new HashMap<String, Integer>();
+	Map<String, Integer> nbReferencedAttributesByClass = new HashMap<String, Integer>();
 
 	TypeAttributeCounter() {
 	  	isReferencedAttribute = false;
@@ -47,32 +47,32 @@ class TypeAttributeCounter {
 		nbReferencedAttributesByClass = new HashMap<String, Integer>();
 	}
 
-	static void incrementSimpleAttributes() {
+	void incrementSimpleAttributes() {
 		++nbSimpleAttributes;
 	}
 
-	static void incrementReferencedAttributes() {
+	void incrementReferencedAttributes() {
 		++nbReferencedAttributes;
 		isReferencedAttribute = true;
 	}
 
-	static int getTotalForClass(String name) {
+	int getTotalForClass(String name) {
 		return nbSimpleAttributesByClass.get(name) + nbReferencedAttributesByClass.get(name);
 	}
 
-	static boolean getIsReferencedAttribute() { return isReferencedAttribute; }
+	boolean getIsReferencedAttribute() { return isReferencedAttribute; }
 
-	static void reset() { nbSimpleAttributes = nbReferencedAttributes = 0; }
+	void reset() { nbSimpleAttributes = nbReferencedAttributes = 0; }
 
-	static void compile(String currentClassName) {
+	void compile(String currentClassName) {
 		nbSimpleAttributesByClass.put(currentClassName, nbSimpleAttributes);
 		nbReferencedAttributesByClass.put(currentClassName, nbReferencedAttributes);
 		reset();
 	}
 
-	static void resetIsReferenced() { isReferencedAttribute = false; }
+	void resetIsReferenced() { isReferencedAttribute = false; }
 
-	static void output(String name) {
+	void output(String name) {
 	  	Integer lineWidth = 15;
 	  	Integer total = getTotalForClass(name);
 	  	String pourcentLine = "Pourcentage d'attribut";
@@ -91,8 +91,8 @@ class TypeAttributeCounter {
 }
 
 class SpecifierAttributeCounter {
-	static Integer privates, publics, protecteds;
-	static Map<String, Map<Keys, Integer>> nbAttributesBySpecifierByClass = new HashMap<String, Map<Keys, Integer>>();
+	Integer privates, publics, protecteds;
+	Map<String, Map<Keys, Integer>> nbAttributesBySpecifierByClass = new HashMap<String, Map<Keys, Integer>>();
 
 	SpecifierAttributeCounter() {
 		privates = 0;
@@ -100,7 +100,7 @@ class SpecifierAttributeCounter {
 		protecteds = 0;
 	}
 
-	static void increment(Keys key) {
+	void increment(Keys key) {
 		switch (key) {
 			case PRIVATE: ++privates; break;
 			case PUBLIC: ++publics; break;
@@ -108,9 +108,9 @@ class SpecifierAttributeCounter {
 		}
 	}
 
-	static void reset() { privates = publics = protecteds = 0; }
+	void reset() { privates = publics = protecteds = 0; }
 
-	static void compile(String name) {
+	void compile(String name) {
 	  	nbAttributesBySpecifierByClass.put(name, new HashMap<Keys, Integer>());
 		nbAttributesBySpecifierByClass.get(name).put(Keys.PUBLIC, publics);
 		nbAttributesBySpecifierByClass.get(name).put(Keys.PROTECTED, protecteds);
@@ -118,7 +118,7 @@ class SpecifierAttributeCounter {
 		reset();
 	}
 
-	static void output(String name, Integer total) {
+	void output(String name, Integer total) {
 	  	Integer repeatLong = 15, repeatDefault = 8;
 	  	String pourcentLine = "Pourcentage d'attribut";
 	  
@@ -137,9 +137,9 @@ class SpecifierAttributeCounter {
 }
 
 class VisibilityLister {
-  	static ArrayList<String> allDeclarations;
-  	static Map<String, ArrayList<String>> associationsByClass;
-  	private static ArrayList<String> permanentVisibilities;
+  	ArrayList<String> allDeclarations;
+  	Map<String, ArrayList<String>> associationsByClass;
+  	private ArrayList<String> permanentVisibilities;
 
 	VisibilityLister(ArrayList<String> allDeclarations, Map<String, ArrayList<String>> associationsByClass, String name, String specifier) {
 		this.allDeclarations = allDeclarations;
@@ -149,7 +149,7 @@ class VisibilityLister {
 	}
 
 
-	private static void compile(String name, String specifier) {
+	private void compile(String name, String specifier) {
 		for (Map.Entry<String, ArrayList<String>> entry : associationsByClass.entrySet()) {
 			String entryClassKey = entry.getKey();
 			ArrayList<String> entryAssociations = entry.getValue();
@@ -164,7 +164,7 @@ class VisibilityLister {
 		}
 	}
 
-	static void output() {
+	void output() {
 		System.out.println("Visible for : " + permanentVisibilities);
 	}
 }
