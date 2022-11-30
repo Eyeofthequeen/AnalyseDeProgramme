@@ -219,7 +219,7 @@ class Stats {
 			System.out.println("Nombre d'associations : " + associations.size());
 			System.out.println("Associations : " + associations);
 
-            System.out.println("Liens: " + Links.get(name));
+            System.out.println("Héritage: " + Links.get(name).getInheritance().getNames());
 
 			visibilityLister.output();
 
@@ -265,12 +265,38 @@ class ClassLink {
         }
     }
 
+    public ClassLink getInheritance() {
+        ClassLink classLink = new ClassLink();
+        for (Link link : links) {
+            if (link.type == LinkType.INHERITANCE)
+                classLink.add(link);
+        }
+        return classLink;
+    }
+
+    public String getNames() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("[");
+        if (links.size() > 0) {
+            for (Link link : links)
+                sb.append(link.to).append(", ");
+
+            // remove last comma
+            sb.delete(sb.length() - 2, sb.length());
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        if (links.size() > 0)
+        if (links.size() > 0) {
             for (Link link : links)
-                sb.append(link).append("\n");
+                sb.append(link).append(", ");
 
+            // remove last comma
+            sb.delete(sb.length() - 2, sb.length());
+        }
         return sb.toString();
     }
 }
