@@ -106,6 +106,10 @@ class ClassLink {
   String name = "";
   List<Link> links = new ArrayList<>();
 
+  public boolean hasLinks() {
+      return links.size() > 0;
+  }
+
   public void add(Link link) {
       links.add(link);
   }
@@ -171,7 +175,8 @@ class Links {
 //          System.out.println("class " + name);
 
       for(ClassLink classLink: classLinks)
-          System.out.println(classLink);
+          if (classLink.hasLinks())
+              System.out.println(classLink);
   }
 
   static ClassLink get(String name) {
