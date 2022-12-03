@@ -1,48 +1,39 @@
-interface I {
-    public void test();
+
+
+class Test implements Inter {
+	float x = -10.1;
+	int n = -1;
+	private double j = 10.1;
+	Integer i = 100;
+
+	public void main(int val) {
+		int chiffre = 10;
+
+		if (10 == 2) {
+			n = 2;
+		}
+	}
 }
 
-interface J {
-    public void guh();
+private class Main extends Test {
+	protected String str = new String();
+	private String test = new String();
+	int j = 10;
+	Autre autre = new Autre();
+
+	public void something(int val) {
+
+		while (j < 20) {
+
+		}
+
+		return 10;
+	}
 }
 
-public class MyString extends String {
-    public int r = 1;
-    private StringBuilder builder = new StringBuilder();
-    public String toString() {
-        return builder.toString();
-    }
-}
-
-public abstract class Test {
-    private int w = 10;
-    public int x = 0;
-    protected int y;
-    public int z;
-}
-
-class T implements I {
-    private float bruh;
-    public void test() {
-        int i = -1;
-	    float j = 1.0;
-    }
-    protected int i;
-}
-
-public class Other extends Test implements I, J {
-    private Test test;
-    public void test() {}
-    public void guh() {}
-}
-
-public class Qwerty {
-    private Other other;
-    private I variable;
-
-    public J function(T t, I i) {
-        String test = other.toString();
-        int i = other.guh();
-        float test = variable.test();
-    }
+class Autre {
+	private Test t = new Test(10, 10, 100);
+	bool isActive = false;
+	int i = 10 + 1 / (10 + 2);
+	protected bool isProtected = true;
 }

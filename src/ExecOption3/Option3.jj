@@ -19,7 +19,7 @@ public class Option3 {
     public static void main(String[] args) {
     		try {
                 String file = Files.readString(Paths.get(args[0]));
-    		    List<Link> links = new Option3(new java.io.StringReader(file)).Input();
+    		    new Option3(new java.io.StringReader(file)).Input();
     		} catch (Throwable e) {
     			System.out.println("Syntax check failed: " + e.getMessage());
     		}
@@ -40,6 +40,44 @@ class Link {
 
     public String toString() {
         return from + ((type == LinkType.INHERITANCE) ? "---|>" : "-----") + to;
+    }
+}
+
+class ClassLink {
+    String name = "";
+    private List<Link> links = new ArrayList<>();
+
+    public void add(Link link) {
+        links.add(link);
+    }
+
+    public void addAssociation(String type) {
+        // check if the first letter is a capital letter
+        if (name.charAt(0) != name.toLowerCase().charAt(0)) {
+            add(new Link(name, type, LinkType.ASSOCIATION));
+        }
+    }
+
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        if (links.size() > 0)
+            for (Link link : links)
+                sb.append(link).append("\n");
+
+        return sb.toString();
+    }
+}
+
+class Links {
+    static List<ClassLink> classLinks = new ArrayList<>();
+    static Set<String> names = new HashSet<>();
+
+    static void print() {
+        for(String name: names)
+            System.out.println("class " + name);
+
+        for(ClassLink classLink: classLinks)
+            System.out.println(classLink);
     }
 }
 
@@ -131,37 +169,28 @@ TOKEN :	/* LITTERAUX */
 | < IDENTIFIER : < LETTER > (< LETTER > | < DIGIT >)* >
 }
 
-List<Link> Input() : {List<Link> links = new ArrayList<>(); Set<String> names = new HashSet<>();}
+void Input() : {}
 {
-    [Class(names, links)]
+    [Class()]
     {
-        for(String name: names)
-            System.out.println("class " + name);
-
-        System.out.println();
-
-        for(Link link: links)
-            System.out.println(link);
-
-        return links;}
+        Links.print();
+    }
 }
 
-void Class(Set<String> names, List<Link> links) : {String name; Link extension = null; List<Link> implementations = null;}
+void Class() : {String name = null; ClassLink classLink = new ClassLink();}
 {
     [Visibility()]
     (([<ABSTRACT>] <CLASS>) | <INTERFACE>)
-    name=ClassName()
-    [extension = Extension(name)]
-    [implementations = Implementation(name)]
+    // needed to know which class variables counts as an association
+    classLink.name=ClassName()
+    [Extension(classLink)]
+    [Implementation(classLink)]
+    MatchedBraces(classLink)
     {
-        names.add(name); // needed to know which class variables counts as an association
-        if (extension != null)
-            links.add(extension);
-        if (implementations != null)
-            links.addAll(implementations);
-     }
-     MatchedBraces(name, names, links)
-     [Class(names, links)]
+        Links.names.add(classLink.name);
+        Links.classLinks.add(classLink);
+    }
+    [Class()]
 }
 
 String ClassName() : {Token token;}
@@ -170,9 +199,9 @@ String ClassName() : {Token token;}
     {return token.image;}
 }
 
-void MatchedBraces(String from, Set<String> names, List<Link> links) : {}
+void MatchedBraces(ClassLink classLink) : {}
 {
-   <LBRACE> (LOOKAHEAD([Visibility()] ( <IDENTIFIER> | < VOID > ) < IDENTIFIER > "(") function() | Attribute(from, names, links) )* <RBRACE>
+   <LBRACE> (LOOKAHEAD([Visibility()] ( <IDENTIFIER> | < VOID > ) < IDENTIFIER > "(") function() | Attribute(classLink) )* <RBRACE>
 }
 
 void Visibility() : {}
@@ -180,40 +209,34 @@ void Visibility() : {}
     <PRIVATE> | <PROTECTED> | <PUBLIC>
 }
 
-Link Extension(String from) : {Token to;}
+void Extension(ClassLink classLink) : {Token to;}
 {
     <EXTENDS> to=<IDENTIFIER>
     {
-        return new Link(from, to.image, LinkType.INHERITANCE);
+        classLink.add(new Link(classLink.name, to.image, LinkType.INHERITANCE));
     }
 }
 
-List<Link> Implementation(String from) : {List<Link> to = new ArrayList<>(); Token token;}
+void Implementation(ClassLink classLink) : {Token token;}
 {
-    <IMPLEMENTS> token=<IDENTIFIER> (MultipleImplementations(from, to))*
+    <IMPLEMENTS> token=<IDENTIFIER> (MultipleImplementations(classLink))*
     {
-        to.add(new Link(from, token.image, LinkType.INHERITANCE)); return to;
+        classLink.add(new Link(classLink.name, token.image, LinkType.INHERITANCE));;
     }
 }
 
-void MultipleImplementations(String from, List<Link> to) : {Token token;}
+void MultipleImplementations(ClassLink classLink) : {Token token;}
 {
     <COMMA> token=<IDENTIFIER>
     {
-        to.add(new Link(from, token.image, LinkType.INHERITANCE));
+        classLink.add(new Link(classLink.name, token.image, LinkType.INHERITANCE));
     }
 }
 
-void Attribute(String from, Set<String> names, List<Link> links) : {Token type;}
+void Attribute(ClassLink classLink) : {Token type;}
 {
     [Visibility()] type=<IDENTIFIER> <IDENTIFIER> [<ASSIGN> ( (<NEW> <IDENTIFIER> "(" (parameter_declaration() ("," parameter_declaration())*)? ")") | logical_expression()) ] <SEMI_COLON>
-    {
-        String name = type.image;
-        // check if the first letter is a capital letter
-        if (name.charAt(0) != name.toLowerCase().charAt(0)) {
-            links.add(new Link(from, name, LinkType.ASSOCIATION));
-        }
-    }
+    {classLink.addAssociation(type.image);}
 }
 
 // -----------

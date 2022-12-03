@@ -10,7 +10,8 @@ OUTPUTDIR := out
 
 #SOURCES := StatsAttributs.jj
 #SOURCES := Test.jj
-SOURCES := ExecOption4/Option4.jj
+#SOURCES := ExecOption3/Option3.jj
+SOURCES := Merge/Merge.jj
 
 .PHONY: all clean $(SOURCES)
 
@@ -33,3 +34,9 @@ $(SOURCES):
 clean:
 	-@rm -r $(OBJECTSDIR)
 	-@rm -r $(OUTPUTDIR)
+
+
+# possible solution
+# .class -> .java -> .jj
+# *.class:*.java
+# *.java:*.jj
