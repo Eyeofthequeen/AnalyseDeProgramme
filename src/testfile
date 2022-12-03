@@ -31,7 +31,9 @@ class T implements I {
 
 public class Other extends Test implements I, J {
     private Test test;
-    public void test() {}
+    public void test() {
+        test.test();
+    }
     public void guh() {}
 }
 
@@ -40,6 +42,8 @@ public class Qwerty {
     private I variable;
 
     public J function(T test, I test2) {
+        test2.x();
+        test.qwerty();
         return new Other();
     }
 }

@@ -1,49 +1,8 @@
-
-/*
-danson@grafidog.com: Modified to support Java 7:
-- binary literals
-- underscores in numeric literals
-- strings in switch statements (no change needed)
-- type inference for generic instance creation (no changes needed)
-- improved compiler warnings and errors when using non-reifiable formal parameters with varargs methods (no changes needed)
-- try with resources
-- catching multiple exception types and rethrowing exceptions with improved type checking
-    
-
-Per Sreenivasa Viswanadha (as posted on the javacc user mailing list), the
-original java 1.5 grammar is licensed under the BSD license, so this modified
-grammar is also.
-
-Redistribution and use in source and binary forms, with or without modification,
-are permitted provided that the following conditions are met:
-
-    * Redistributions of source code must retain the above copyright notice,
-    this list of conditions and the following disclaimer.
-    * Redistributions in binary form must reproduce the above copyright notice,
-    this list of conditions and the following disclaimer in the documentation
-    and/or other materials provided with the distribution.
-    * Neither the name of the <ORGANIZATION> nor the names of its contributors
-    may be used to endorse or promote products derived from this software without
-    specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
-ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
-ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
-
-
 options {
   JAVA_UNICODE_ESCAPE = true;
   //ERROR_REPORTING = true;
   STATIC = false;
-  //DEBUG_PARSER = true;
+  DEBUG_PARSER = false;
 }
 
 PARSER_BEGIN(JavaParser)
@@ -203,12 +162,13 @@ class Links {
 
   static void addCurrent() {
       classLinks.add(currentClassLink);
+      names.add(currentClassLink.name);
       currentClassLink = new ClassLink();
   }
 
   static void print() {
-      for(String name: names)
-          System.out.println("class " + name);
+//      for(String name: names)
+//          System.out.println("class " + name);
 
       for(ClassLink classLink: classLinks)
           System.out.println(classLink);
@@ -228,6 +188,45 @@ enum LinkType {
   ASSOCIATION
 }
 
+
+class ClassVariables {
+    public static Set<Variable> functionVariables = new HashSet<>();
+    public static Set<Variable> classVariables = new HashSet<>();
+    public static String currentClassName;
+
+    public static void resetClass() {
+        classVariables.clear();
+        functionVariables.clear();
+    }
+
+    public static void resetFunction() {
+        functionVariables.clear();
+    }
+
+    public static Variable getVariable(String variableName) {
+        for (Variable variable: functionVariables)
+            // also check for type in case of static function call
+            if (variable.name.equals(variableName) || variable.type.equals(variableName))
+                return variable;
+
+        for (Variable variable: classVariables)
+            if (variable.name.equals(variableName) || variable.type.equals(variableName))
+                return variable;
+
+        return null;
+    }
+
+    public static void printFunction() {
+        for (Variable variable: functionVariables)
+            System.out.print(variable + ", ");
+    }
+
+    public static void printClass() {
+        for (Variable variable: classVariables)
+            System.out.print(variable + ", ");
+        }
+}
+
 class Variable {
    public String type;
    public String name;
@@ -245,6 +244,25 @@ class Variable {
    public String toString() {
        return type + " " + name;
    }
+}
+
+class ClassCalls {
+    private static HashMap<String, Calls> classCalls = new HashMap<>();
+
+    public static void addCall(String className) {
+        String currentClass = ClassVariables.currentClassName;
+        if (!classCalls.containsKey(currentClass)) {
+           classCalls.put(currentClass, new Calls());
+       }
+        classCalls.get(currentClass).add(className);
+    }
+
+    public static void print() {
+        for (Map.Entry<String, Calls> entry : classCalls.entrySet()) {
+            System.out.println(entry.getKey());
+            System.out.println(entry.getValue());
+        }
+    }
 }
 
 class Calls {
@@ -590,11 +608,10 @@ void CompilationUnit():
 {
 }
 {
-
     [ LOOKAHEAD(2) PackageDeclaration() ]
     ( ImportDeclaration() )*
     (TypeDeclaration())*
-    {Links.print();}
+    {Links.print(); System.out.println(); ClassCalls.print();}
     <EOF>
 }
 
@@ -603,16 +620,14 @@ void PackageDeclaration():
 {
 }
 {
-    
-        <PACKAGE> Name() ";"  
+    <PACKAGE> Name() ";"
 }
 
 void  ImportDeclaration():
 {
 }
 {
-    
-        <IMPORT> [ <STATIC> ] Name() [ "." "*" ] ";"
+    <IMPORT> [ <STATIC> ] Name() [ "." "*" ] ";"
 }
 
 /*
@@ -667,17 +682,17 @@ void TypeDeclaration():
 {
 }
 {
-       ";"
-        |
-          Modifiers()
-          (
-              LOOKAHEAD(2)
-             ClassOrInterfaceDeclaration()
-           | 
-             EnumDeclaration()
-           | 
-             AnnotationTypeDeclaration()
-          )
+    ";"
+    |
+    Modifiers()
+    (
+      LOOKAHEAD(2)
+     ClassOrInterfaceDeclaration()
+    |
+     EnumDeclaration()
+    |
+     AnnotationTypeDeclaration()
+    )
 }
 
 void ClassOrInterfaceDeclaration():
@@ -686,12 +701,11 @@ void ClassOrInterfaceDeclaration():
  ClassLink classLink;
 }
 {
-    
-      ( 
+      (
           "class" | "interface" 
       )
       name=<IDENTIFIER>
-      {Links.currentClassLink = new ClassLink(); Links.currentClassLink.name = name.image;}
+      {Links.currentClassLink = new ClassLink(); Links.currentClassLink.name = name.image; ClassVariables.currentClassName = name.image;}
       [ TypeParameters() ]
       [ ExtendsList() ]
       [ ImplementsList() ]
@@ -710,13 +724,12 @@ void ExtendsList():
  String extension;
 }
 {
-       "extends" extension=ClassOrInterfaceType()
-       {Links.currentClassLink.add(new Link(Links.currentClassLink.name, extension, LinkType.INHERITANCE));}
-       (
-       "," extension=ClassOrInterfaceType()
-       {Links.currentClassLink.add(new Link(Links.currentClassLink.name, extension, LinkType.INHERITANCE));}
-       )*
-
+    "extends" extension=ClassOrInterfaceType()
+    {Links.currentClassLink.add(new Link(Links.currentClassLink.name, extension, LinkType.INHERITANCE));}
+    (
+    "," extension=ClassOrInterfaceType()
+    {Links.currentClassLink.add(new Link(Links.currentClassLink.name, extension, LinkType.INHERITANCE));}
+    )*
 }
 
 void ImplementsList():
@@ -724,57 +737,52 @@ void ImplementsList():
  String implementation;
 }
 {
-        "implements" implementation=ClassOrInterfaceType()
-        {Links.currentClassLink.add(new Link(Links.currentClassLink.name, implementation, LinkType.INHERITANCE));}
-       ( "," ClassOrInterfaceType()
-       {Links.currentClassLink.add(new Link(Links.currentClassLink.name, implementation, LinkType.INHERITANCE));}
-       )*
-
+    "implements" implementation=ClassOrInterfaceType()
+    {Links.currentClassLink.add(new Link(Links.currentClassLink.name, implementation, LinkType.INHERITANCE));}
+    ( "," ClassOrInterfaceType()
+    {Links.currentClassLink.add(new Link(Links.currentClassLink.name, implementation, LinkType.INHERITANCE));}
+    )*
 }
 
 void EnumDeclaration():
 {
 }
 {
-    
-        "enum" <IDENTIFIER>
-        [ ImplementsList() ]
-        EnumBody()
-
+    "enum" <IDENTIFIER>
+    [ ImplementsList() ]
+    EnumBody()
 }
 
 void EnumBody():
 {
 }
 {
-    
-        "{"
-        EnumConstant() ( LOOKAHEAD(2) "," EnumConstant() )* [","]
-        [ ";" ( ClassOrInterfaceBodyDeclaration() )* ]
-        "}"
+    "{"
+    EnumConstant() ( LOOKAHEAD(2) "," EnumConstant() )* [","]
+    [ ";" ( ClassOrInterfaceBodyDeclaration() )* ]
+    "}"
 }
 
 void EnumConstant():
 {
 }
 {
-    
-        <IDENTIFIER> [ Arguments() ] [ ClassOrInterfaceBody() ]
+    <IDENTIFIER> [ Arguments() ] [ ClassOrInterfaceBody() ]
 }
 
 void TypeParameters():
 {
 }
 {
-        "<"
-        (
+    "<"
+    (
+    TypeParameter()
+    )?
+    (
+        ","
         TypeParameter()
-        )?
-        (
-            ","
-            TypeParameter()
-        )*
-        ">"
+    )*
+    ">"
 }
 
 void TypeParameter():
@@ -782,110 +790,110 @@ void TypeParameter():
  Token genericType;
 }
 {
-        genericType=<IDENTIFIER> [ TypeBound() ]
-        {Links.currentClassLink.add(new Link(Links.currentClassLink.name, genericType.image, LinkType.ASSOCIATION));}
-
+    genericType=<IDENTIFIER> [ TypeBound() ]
+    {Links.currentClassLink.add(new Link(Links.currentClassLink.name, genericType.image, LinkType.ASSOCIATION));}
 }
 
 void TypeBound():
 {
 }
 {
-        "extends"
+    "extends"
+    ClassOrInterfaceType()
+    (
+        "&"
         ClassOrInterfaceType()
-        (
-            "&"
-            ClassOrInterfaceType()
-        )*
+    )*
 }
 
 void ClassOrInterfaceBody():
 {
 }
 {
-        "{"
-        (
-            ClassOrInterfaceBodyDeclaration()
-        )*
-        "}"
+    "{"
+    (
+        ClassOrInterfaceBodyDeclaration()
+    )*
+    "}"
+//    {System.out.print("Class: ");ClassVariables.printClass();System.out.println();}
+    {ClassVariables.resetClass();}
 }
 
 void ClassOrInterfaceBodyDeclaration():
 {
 }
 {
-          (
+      LOOKAHEAD(2)
+      Initializer()
+    |
+      Modifiers() // Just get all the modifiers out of the way. If you want to do
+                  // more checks, pass the modifiers down to the member
+      (
+          LOOKAHEAD(3)
+          ClassOrInterfaceDeclaration()
+        |
+          EnumDeclaration()
+        |
+          LOOKAHEAD( [ TypeParameters() ] <IDENTIFIER> "(" )
+          ConstructorDeclaration()
+        |
+          LOOKAHEAD( Type() <IDENTIFIER> ( "[" "]" )* ( "," | "=" | ";" ) )
+          FieldDeclaration()
+        |
           LOOKAHEAD(2)
-          Initializer()
+          AnnotationTypeDeclaration()
         |
-          Modifiers() // Just get all the modifiers out of the way. If you want to do
-                      // more checks, pass the modifiers down to the member
-          (
-              LOOKAHEAD(3)
-              ClassOrInterfaceDeclaration()
-            |
-              EnumDeclaration()
-            |
-              LOOKAHEAD( [ TypeParameters() ] <IDENTIFIER> "(" )
-              ConstructorDeclaration()
-            |
-              LOOKAHEAD( Type() <IDENTIFIER> ( "[" "]" )* ( "," | "=" | ";" ) )
-              FieldDeclaration()
-            |
-              LOOKAHEAD(2)
-              AnnotationTypeDeclaration()
-            |
-              MethodDeclaration()
+          MethodDeclaration()
 
-          )
-        |
-          ";"  
-          )
+      )
+    |
+      ";"
 }
 
 void FieldDeclaration():
 {
+ String type, id;
 }
 {
     
 
+        // Modifiers are already matched in the caller
+        type=Type() id=VariableDeclarator()
+        {ClassVariables.classVariables.add(new Variable(type, id));}
         (
-            // Modifiers are already matched in the caller
-            Type() VariableDeclarator()
-            (
-                "," VariableDeclarator()
-            )*
-            ";"
-        )
+            "," id=VariableDeclarator()
+            {ClassVariables.classVariables.add(new Variable(type, id));}
+        )*
+        ";"
 }
 
-void VariableDeclarator():
+String VariableDeclarator():
 {
+ String id;
 }
 {
     
-        (
-            VariableDeclaratorId() [ "=" VariableInitializer() ]
-        )
+        id=VariableDeclaratorId() [ "=" VariableInitializer() ]
+        {return id;}
 }
 
-void VariableDeclaratorId():
+String VariableDeclaratorId():
 {
+ Token id;
 }
 {
     
-        <IDENTIFIER> 
+        id=<IDENTIFIER>
         ( 
             "[" "]" 
         )*
+        {return id.image;}
 }
 
 void VariableInitializer():
 {
 }
 {
-    
-
           ArrayInitializer()
         |
           Expression()
@@ -895,34 +903,36 @@ void ArrayInitializer():
 {
 }
 {
-    
-
-        "{" [ VariableInitializer() ( LOOKAHEAD(2) "," VariableInitializer() )* ] [ "," ] "}"
-
+    "{" [ VariableInitializer() ( LOOKAHEAD(2) "," VariableInitializer() )* ] [ "," ] "}"
 }
 
 void MethodDeclaration():
 {
+ String methodName;
 }
 {
-    
-        (
-          // Modifiers already matched in the caller!
-          [ TypeParameters() ]
-          ResultType()
-          MethodDeclarator() [ "throws" NameList() ]
-          ( Block() | ";" )
-        )
+    // Modifiers already matched in the caller!
+    [ TypeParameters() ]
+    ResultType()
+    methodName=MethodDeclarator() [ "throws" NameList() ]
+    (
+      (
+          Block()
+//          {System.out.println("Method: " + methodName);ClassVariables.printFunction();System.out.println("\n------------");}
+      )
+      | ";"
+    )
+    {ClassVariables.resetFunction();}
 }
 
-void MethodDeclarator():
+String MethodDeclarator():
 {
+ Token methodName;
 }
 {
     
-        (
-            <IDENTIFIER> FormalParameters() ( "[" "]" )*
-        )
+    methodName=<IDENTIFIER> FormalParameters() ( "[" "]" )*
+    {return methodName.image;}
 }
 
 void FormalParameters():
@@ -930,32 +940,30 @@ void FormalParameters():
 }
 {
     
-        (
-         "("
-         [
-              FormalParameter()
-              (
-                  ","
-                  FormalParameter()
-              )*
-         ]
-         ")"
-        )
+    "("
+    [
+      FormalParameter()
+      (
+          ","
+          FormalParameter()
+      )*
+    ]
+    ")"
 }
 
 void FormalParameter():
 {
+ String type, id;
 }
 {
     
-      (
-        Modifiers()
-        Type()
-       [
-        <ELLIPSIS>  // ...
-       ]
-       VariableDeclaratorId()
-      )
+    Modifiers()
+    type=Type()
+    [
+    <ELLIPSIS>  // ...
+    ]
+    id=VariableDeclaratorId()
+    {ClassVariables.functionVariables.add(new Variable(type, id));}
 }
 
 void ConstructorDeclaration():
@@ -963,26 +971,23 @@ void ConstructorDeclaration():
 }
 {
     
-        (
-            [ Annotation() ]
-            [ TypeParameters() ]
-            <IDENTIFIER> FormalParameters() [ "throws" NameList() ]
-            "{"
-                [ LOOKAHEAD(ExplicitConstructorInvocation()) ExplicitConstructorInvocation() ]
-            ( BlockStatement() )*
-            "}"
-        )
+    [ Annotation() ]
+    [ TypeParameters() ]
+    <IDENTIFIER> FormalParameters() [ "throws" NameList() ]
+    "{"
+        [ LOOKAHEAD(ExplicitConstructorInvocation()) ExplicitConstructorInvocation() ]
+    ( BlockStatement() )*
+    "}"
 }
 
 void ExplicitConstructorInvocation():
 {
 }
 {
-    
-          LOOKAHEAD("this" Arguments() ";")
-          "this" Arguments() ";"
-        |
-        [ LOOKAHEAD(2) PrimaryExpression() "." ] "super" Arguments() ";"
+    LOOKAHEAD("this" Arguments() ";")
+    "this" Arguments() ";"
+    |
+    [ LOOKAHEAD(2) PrimaryExpression() "." ] "super" Arguments() ";"
 }
 
 void Initializer():
@@ -993,31 +998,29 @@ void Initializer():
         [ <STATIC> ] Block()
 }
 
-void Type():
+String Type():
 {
+ String type;
 }
 {
-    
-        (
-         LOOKAHEAD(2) ReferenceType()
-        |
-         PrimitiveType()
-        )
+    (LOOKAHEAD(2) type=ReferenceType() | type=PrimitiveType())
+    {return type;}
 }
 
-void ReferenceType():
+String ReferenceType():
 {
  String referenceName;
 }
 {
     LOOKAHEAD(3)
-        PrimitiveType() ( LOOKAHEAD(2) "[" "]" )+
+        referenceName=PrimitiveType() ( LOOKAHEAD(2) "[" "]" )+
     |
     (
         referenceName=ClassOrInterfaceType()
         {Links.currentClassLink.add(new Link(Links.currentClassLink.name, referenceName, LinkType.ASSOCIATION));}
     )
     ( LOOKAHEAD(2) "[" "]")*
+    {return referenceName;}
 }
 
 String ClassOrInterfaceType():
@@ -1027,13 +1030,13 @@ String ClassOrInterfaceType():
 }
 {
     
+    name=<IDENTIFIER> [ LOOKAHEAD(2) TypeArguments() ]
+    {sb.append(name.image);}
+    ( LOOKAHEAD(2) "."
         name=<IDENTIFIER> [ LOOKAHEAD(2) TypeArguments() ]
-        {sb.append(name.image);}
-        ( LOOKAHEAD(2) "."
-            name=<IDENTIFIER> [ LOOKAHEAD(2) TypeArguments() ]
-            {sb.append(".").append(name.image);}
-        )*
-        {return sb.toString();}
+        {sb.append(".").append(name.image);}
+    )*
+    {return sb.toString();}
 }
 
 void TypeArguments():
@@ -1041,27 +1044,22 @@ void TypeArguments():
 }
 {
     
-        (
-         <DIAMOND>   
-        )
-        |
-        (
-        "<" TypeArgument() 
+     <DIAMOND>
+    |
+    (
+    "<" TypeArgument()
 
-        ( "," TypeArgument() )* ">"
-        )
+    ( "," TypeArgument() )* ">"
+    )
 }
 
 void TypeArgument():
 {
 }
 {
-    
-        (
-           ReferenceType()
-         |
-         "?" [ WildcardBounds() ]
-        )
+    ReferenceType()
+    |
+    "?" [ WildcardBounds() ]
 }
 
 void WildcardBounds():
@@ -1069,74 +1067,71 @@ void WildcardBounds():
 }
 {
     
-        (
-        "extends" ReferenceType()
-     |
-        "super" ReferenceType() 
-        )
+    "extends" ReferenceType()
+    |
+    "super" ReferenceType()
 }
 
-void PrimitiveType():
+String PrimitiveType():
 {
+ Token type;
 }
 {
-    
-        (
-              "boolean"
-            |
-              "char"
-            | 
-              "byte"
-            | 
-              "short" 
-            | 
-              "int"
-            | 
-              "long"
-            | 
-              "float"
-            | 
-              "double" 
-        )
+    (
+      type="boolean"
+    |
+      type="char"
+    |
+      type="byte"
+    |
+      type="short"
+    |
+      type="int"
+    |
+      type="long"
+    |
+      type="float"
+    |
+      type="double"
+    )
+    {return type.image;}
 }
 
 void ResultType():
 {
 }
 {
-    
-
-          (
-          "void"
-        |
-          Type()
-          )
+      "void"
+    |
+      Type()
 }
 
-void Name():
+String Name():
 /*
  * A lookahead of 2 is required below since "Name" can be followed
  * by a ".*" when used in the context of an "ImportDeclaration".
  */
 {
+ StringBuilder sb = new StringBuilder();
+ Token tok;
 }
 {
-    
-
-        <IDENTIFIER>
-        (
-            LOOKAHEAD(2)
-            "." <IDENTIFIER>
-        )*
+    tok=<IDENTIFIER>
+    {sb.append(tok.image);}
+    (
+        LOOKAHEAD(2)
+        "." tok=<IDENTIFIER>
+        {sb.append(".").append(tok.image);}
+    )*
+    {return sb.toString();}
 }
 
 void NameList():
 {
 }
 {
-    
-        Name() 
-        ( "," Name() )*   
+    Name()
+    ( "," Name() )*
 }
 
 
@@ -1157,157 +1152,140 @@ void Expression():
 {
 }
 {
-    
-          ConditionalExpression()
-          [
-            LOOKAHEAD(2)
-            AssignmentOperator() Expression()
-          ]
+      ConditionalExpression()
+      [
+        LOOKAHEAD(2)
+        AssignmentOperator() Expression()
+      ]
 }
 
 void AssignmentOperator():
 {}
 {
-  "=" | "*=" | "/=" | "%=" | "+=" | "-=" | "<<=" | ">>=" | ">>>=" | "&=" | "^=" | "|="
+    "=" | "*=" | "/=" | "%=" | "+=" | "-=" | "<<=" | ">>=" | ">>>=" | "&=" | "^=" | "|="
 }
 
 void ConditionalExpression():
 {
 }
 {
-    
-        ConditionalOrExpression() [ "?" Expression() ":" Expression() ]
+    ConditionalOrExpression() [ "?" Expression() ":" Expression() ]
 }
 
 void ConditionalOrExpression():
 {
 }
 {
-    
-        ConditionalAndExpression() ( "||" ConditionalAndExpression() )*
+    ConditionalAndExpression() ( "||" ConditionalAndExpression() )*
 }
 
 void ConditionalAndExpression():
 {
 }
 {
-    
-        InclusiveOrExpression() ( "&&" InclusiveOrExpression() )*
+    InclusiveOrExpression() ( "&&" InclusiveOrExpression() )*
 }
 
 void InclusiveOrExpression():
 {
 }
 {
-    
-        ExclusiveOrExpression() ( "|" ExclusiveOrExpression() )*
+    ExclusiveOrExpression() ( "|" ExclusiveOrExpression() )*
 }
 
 void ExclusiveOrExpression():
 {
 }
 {
-    
-        AndExpression() ( "^" AndExpression() )*
+    AndExpression() ( "^" AndExpression() )*
 }
 
 void AndExpression():
 {
 }
 {
-    
-        EqualityExpression() ( "&" EqualityExpression() )*
+    EqualityExpression() ( "&" EqualityExpression() )*
 }
 
 void EqualityExpression():
 {
 }
 {
-    
-        InstanceOfExpression() ( ( "==" | "!=" ) InstanceOfExpression() )*
+    InstanceOfExpression() ( ( "==" | "!=" ) InstanceOfExpression() )*
 }
 
 void InstanceOfExpression():
 {
 }
 {
-    
-        RelationalExpression() [ "instanceof" Type() ]
+    RelationalExpression() [ "instanceof" Type() ]
 }
 
 void RelationalExpression():
 {
 }
 {
-    
-        ShiftExpression() ( ( "<" | ">" | "<=" | ">=" ) ShiftExpression() )*
+    ShiftExpression() ( ( "<" | ">" | "<=" | ">=" ) ShiftExpression() )*
 }
 
 void ShiftExpression():
 {
 }
 {
-    
-        AdditiveExpression() ( ( "<<" | RSIGNEDSHIFT() | RUNSIGNEDSHIFT() ) AdditiveExpression() )*
+    AdditiveExpression() ( ( "<<" | RSIGNEDSHIFT() | RUNSIGNEDSHIFT() ) AdditiveExpression() )*
 }
 
 void AdditiveExpression():
 {
 }
 {
-    
-        MultiplicativeExpression() ( ( "+" | "-" ) MultiplicativeExpression() )*
+    MultiplicativeExpression() ( ( "+" | "-" ) MultiplicativeExpression() )*
 }
 
 void MultiplicativeExpression():
 {
 }
 {
-    
-        UnaryExpression() ( ( "*" | "/" | "%" ) UnaryExpression() )*
+    UnaryExpression() ( ( "*" | "/" | "%" ) UnaryExpression() )*
 }
 
 void UnaryExpression():
 {
 }
 {
-    
-          ( "+" | "-" ) UnaryExpression()
-        |
-          PreIncrementExpression()
-        | 
-          PreDecrementExpression()
-        | 
-          UnaryExpressionNotPlusMinus()
+      ( "+" | "-" ) UnaryExpression()
+    |
+      PreIncrementExpression()
+    |
+      PreDecrementExpression()
+    |
+      UnaryExpressionNotPlusMinus()
 }
 
 void PreIncrementExpression():
 {
 }
 {
-    
-        "++" PrimaryExpression()
+    "++" PrimaryExpression()
 }
 
 void PreDecrementExpression():
 {
 }
 {
-    
-        "--" PrimaryExpression()
+    "--" PrimaryExpression()
 }
 
 void UnaryExpressionNotPlusMinus():
 {
 }
 {
-    
-          ( "~" | "!" ) UnaryExpression()
-        |
-          LOOKAHEAD( CastLookahead() )
-          CastExpression()
-        |
-          PostfixExpression()
+      ( "~" | "!" ) UnaryExpression()
+    |
+      LOOKAHEAD( CastLookahead() )
+      CastExpression()
+    |
+      PostfixExpression()
 }
 
 // This production is to determine lookahead only.  The LOOKAHEAD specifications
@@ -1317,33 +1295,30 @@ void CastLookahead():
 {
 }
 {
-    
-          LOOKAHEAD(2)
-          "(" PrimitiveType()
-        |
-          LOOKAHEAD("(" Type() "[")
-          "(" Type() "[" "]"
-        |
-          "(" Type() ")" ( "~" | "!" | "(" | <IDENTIFIER> | "this" | "super" | "new" | Literal() )
+      LOOKAHEAD(2)
+      "(" PrimitiveType()
+    |
+      LOOKAHEAD("(" Type() "[")
+      "(" Type() "[" "]"
+    |
+      "(" Type() ")" ( "~" | "!" | "(" | <IDENTIFIER> | "this" | "super" | "new" | Literal() )
 }
 
 void PostfixExpression():
 {
 }
 {
-    
-        PrimaryExpression() [ "++" | "--" ]
+    PrimaryExpression() [ "++" | "--" ]
 }
 
 void CastExpression():
 {
 }
 {
-    
-          LOOKAHEAD("(" PrimitiveType())
-          "(" Type() ")" UnaryExpression()
-        |
-          "(" Type() ")" UnaryExpressionNotPlusMinus()
+      LOOKAHEAD("(" PrimitiveType())
+      "(" Type() ")" UnaryExpression()
+    |
+      "(" Type() ")" UnaryExpressionNotPlusMinus()
 }
 
 /**
@@ -1355,132 +1330,157 @@ void CastExpression():
  */
 void PrimaryExpression():
 {
+ String prefix, suffix = null;
 }
 {
-    
-        PrimaryPrefix()
-        ( LOOKAHEAD(2)
-            PrimarySuffix()
-        )*
+    prefix=PrimaryPrefix()
+    ( LOOKAHEAD(2)
+        suffix=PrimarySuffix()
+    )*
+    {
+    // TODO: Add variables declared in function params to variables
+        if (prefix != null && suffix != null && !prefix.isBlank() && !suffix.isBlank()) {
+            // count the number of dots in prefix
+            int dotCount = prefix.length() - prefix.replace(".", "").length();
+            // if the prefix contains multiple dots, variable is only calling a variable that is eventually calling a function,
+            // so it can be ignored
+            if (dotCount == 1) {
+                String caller = prefix.substring(0, prefix.indexOf("."));
+//                System.out.println("-------------------");
+//                ClassVariables.printFunction();
+//                ClassVariables.printClass();
+//                System.out.println();
+//                System.out.println(caller);
+//                System.out.println(ClassVariables.getVariable(caller));
+//                System.out.println("-------------------");
+                ClassCalls.addCall(ClassVariables.getVariable(caller).type);
+            }
+        }
+    }
 }
 
 void MemberSelector():
 {
 }
 {
-    
-        "." TypeArguments() <IDENTIFIER>
+    "." TypeArguments() <IDENTIFIER>
 }
 
-void PrimaryPrefix():
+String PrimaryPrefix():
 {
+ String name = null;
 }
 {
-    
-          Literal()
-        |
-          "this"
-        |
-          "super" "." <IDENTIFIER>
-        |
-          LOOKAHEAD( ClassOrInterfaceType() "." <IDENTIFIER> )
-          ClassOrInterfaceType()"." <IDENTIFIER>
-        |
-          LOOKAHEAD( ClassOrInterfaceType() "." "super" "." <IDENTIFIER> )
-          ClassOrInterfaceType() "." "super" "." <IDENTIFIER>
-        |
-            "(" Expression() ")"
-        |
-            AllocationExpression() 
-        |
-          LOOKAHEAD( ResultType() "." "class" )
-          ResultType() "." "class"
-        |
-          Name()
+    (
+      Literal()
+    |
+      "this"
+    |
+      "super" "." <IDENTIFIER>
+    |
+      LOOKAHEAD( ClassOrInterfaceType() "." <IDENTIFIER> )
+      ClassOrInterfaceType()"." <IDENTIFIER>
+    |
+      LOOKAHEAD( ClassOrInterfaceType() "." "super" "." <IDENTIFIER> )
+      ClassOrInterfaceType() "." "super" "." <IDENTIFIER>
+    |
+        "(" Expression() ")"
+    |
+        AllocationExpression()
+    |
+      LOOKAHEAD( ResultType() "." "class" )
+      ResultType() "." "class"
+    |
+     name=Name()
+     )
+
+     {return name;}
 }
 
-void PrimarySuffix():
+String PrimarySuffix():
 {
+ String arguments = null;
 }
 {
-    
-          LOOKAHEAD(2)
-          "." "this"
-        |
-          LOOKAHEAD(2)
-          "." AllocationExpression()
-        |
-          LOOKAHEAD(3)
-          MemberSelector()
-        |
-          "[" Expression() "]"
-        |
-          "." <IDENTIFIER>
-        |
-          Arguments()
+    (
+      LOOKAHEAD(2)
+      "." "this"
+    |
+      LOOKAHEAD(2)
+      "." AllocationExpression()
+    |
+      LOOKAHEAD(3)
+      MemberSelector()
+    |
+      "[" Expression() "]"
+    |
+      "." <IDENTIFIER>
+    |
+      arguments=Arguments()
+    )
+
+    {return arguments;}
 }
 
 void Literal():
 {}
 {
-    
-          <INTEGER_LITERAL>
-        |
-          <FLOATING_POINT_LITERAL>
-        |
-          <CHARACTER_LITERAL>
-        |
-          <STRING_LITERAL>
-        |
-          BooleanLiteral()
-        |
-          NullLiteral()
+      <INTEGER_LITERAL>
+    |
+      <FLOATING_POINT_LITERAL>
+    |
+      <CHARACTER_LITERAL>
+    |
+      <STRING_LITERAL>
+    |
+      BooleanLiteral()
+    |
+      NullLiteral()
 }
 
 void BooleanLiteral():
 {}
 {
-  "true"
-|
-  "false"
+      "true"
+    |
+      "false"
 }
 
 void NullLiteral():
 {}
 {
-  "null"
+    "null"
 }
 
-void Arguments():
+String Arguments():
 {
 }
 {
-    
-        "(" [ ArgumentList() ] ")"
+    "(" [ ArgumentList() ] ")"
+    // I don't care about the argument list, just that what is being called is a function
+    {return "()";}
 }
 
 void ArgumentList():
 {
 }
 {
-    
-        Expression() ( "," Expression() )*
+    Expression() ( "," Expression() )*
 }
 
 void AllocationExpression():
 {
 }
 {
-    
-          LOOKAHEAD(2)
-          "new" PrimitiveType() ArrayDimsAndInits() 
+      LOOKAHEAD(2)
+      "new" PrimitiveType() ArrayDimsAndInits()
+    |
+      "new" ClassOrInterfaceType() [ TypeArguments() ]
+        (
+            ArrayDimsAndInits()
         |
-          "new" ClassOrInterfaceType() [ TypeArguments() ]
-            (
-                ArrayDimsAndInits() 
-            |
-                Arguments() [ ClassOrInterfaceBody() ]
-            )
+            Arguments() [ ClassOrInterfaceBody() ]
+        )
 }
 
 /*
@@ -1491,11 +1491,10 @@ void ArrayDimsAndInits():
 {
 }
 {
-    
-          LOOKAHEAD(2)
-          ( LOOKAHEAD(2) "["  Expression() "]" )+ ( LOOKAHEAD(2) "[" "]" )*
-        |
-          ( "[" "]" )+ ArrayInitializer()
+      LOOKAHEAD(2)
+      ( LOOKAHEAD(2) "["  Expression() "]" )+ ( LOOKAHEAD(2) "[" "]" )*
+    |
+      ( "[" "]" )+ ArrayInitializer()
 }
 
 
@@ -1507,73 +1506,65 @@ void Statement():
 {
 }
 {
-    
-          (
-          LOOKAHEAD(2)
-          LabeledStatement()
-        |
-          AssertStatement()
-        |
-          Block()
-        |
-          EmptyStatement()
-        |
-          StatementExpression() ";"
-        |
-          SwitchStatement()
-        |
-          IfStatement()
-        |
-          WhileStatement()
-        |
-          DoStatement()
-        |
-          ForStatement()
-        |
-          BreakStatement()
-        |
-          ContinueStatement()
-        |
-          ReturnStatement()
-        |
-          ThrowStatement()
-        |
-          SynchronizedStatement()
-        |
-          TryStatement()
-          )
-
+      LOOKAHEAD(2)
+      LabeledStatement()
+    |
+      AssertStatement()
+    |
+      Block()
+    |
+      EmptyStatement()
+    |
+      StatementExpression() ";"
+    |
+      SwitchStatement()
+    |
+      IfStatement()
+    |
+      WhileStatement()
+    |
+      DoStatement()
+    |
+      ForStatement()
+    |
+      BreakStatement()
+    |
+      ContinueStatement()
+    |
+      ReturnStatement()
+    |
+      ThrowStatement()
+    |
+      SynchronizedStatement()
+    |
+      TryStatement()
 }
 
 void AssertStatement():
 {}
 {
-    
-        "assert" Expression() [ ":" Expression() ] ";"
+    "assert" Expression() [ ":" Expression() ] ";"
 }
 
 void LabeledStatement():
 {}
 {
-    
-        <IDENTIFIER> ":" Statement()
+    <IDENTIFIER> ":" Statement()
 }
 
 void Block():
 {
 }
 {
-    
-        "{" ( BlockStatement() )* "}"
+    "{" ( BlockStatement() )* "}"
 }
 
 void BlockStatement():
 {
 }
 {
-    
-        [LOOKAHEAD(2) Annotation()]
-            (
+    [LOOKAHEAD(2) Annotation()]
+    (
           LOOKAHEAD( Modifiers() Type() <IDENTIFIER>)
           LocalVariableDeclaration() ";"
         |
@@ -1581,20 +1572,22 @@ void BlockStatement():
           Statement()
         |
           ClassOrInterfaceDeclaration()
-             )
+    )
 }
 
 void LocalVariableDeclaration():
 {
-
+String type, id;
 }
 {
     
       // old -- [ "final" ] Type() VariableDeclarator() ( "," VariableDeclarator() )*
       // new -- Modifiers() Type() VariableDeclarator() ( "," VariableDeclarator() )*
 
-      [LOOKAHEAD(2) Annotation()] Modifiers() Type() VariableDeclarator()
-      ( "," VariableDeclarator()
+      [LOOKAHEAD(2) Annotation()] Modifiers() type=Type() id=VariableDeclarator()
+      {ClassVariables.functionVariables.add(new Variable(type, id));}
+      ( "," id=VariableDeclarator()
+      {ClassVariables.functionVariables.add(new Variable(type, id));}
       )*
 }
 
@@ -1613,40 +1606,36 @@ void StatementExpression():
 {
 }
 {
-    
-          PreIncrementExpression()
-        |
-          PreDecrementExpression()
-        |
-          PrimaryExpression()
-          [
-            "++"
-          |
-            "--"
-          |
-            AssignmentOperator() Expression()
-          ]
+      PreIncrementExpression()
+    |
+      PreDecrementExpression()
+    |
+      PrimaryExpression()
+      [
+        "++"
+      |
+        "--"
+      |
+        AssignmentOperator() Expression()
+      ]
 }
 
 void SwitchStatement():
 {
 }
 {
-    
-        "switch" "(" Expression() ")" "{"
-            ( SwitchLabel() ( BlockStatement() )* )*
-      "}"
-
+    "switch" "(" Expression() ")" "{"
+    ( SwitchLabel() ( BlockStatement() )* )*
+    "}"
 }
 
 void SwitchLabel():
 {
 }
 {
-    
-          "case" Expression() ":"
-        |
-          "default" ":"
+      "case" Expression() ":"
+    |
+      "default" ":"
 }
 
 void IfStatement():
@@ -1658,44 +1647,37 @@ void IfStatement():
 {
 }
 {
-    
-        "if" "(" Expression() ")" Statement() [ LOOKAHEAD(1) "else" Statement() ]
-
+    "if" "(" Expression() ")" Statement() [ LOOKAHEAD(1) "else" Statement() ]
 }
 
 void WhileStatement():
 {
 }
 {
-    
-        "while" "(" Expression() ")" Statement()
+    "while" "(" Expression() ")" Statement()
 }
 
 void DoStatement():
 {
 }
 {
-    
-        "do" Statement() "while" "(" Expression() ")" ";"
-
+    "do" Statement() "while" "(" Expression() ")" ";"
 }
 
 void ForStatement():
 {
 }
 {
-    
-      "for" "("
+    "for" "("
 
-      (
-          LOOKAHEAD([Annotation()]["final"] Type() <IDENTIFIER> ":")
-          [LOOKAHEAD(2) Annotation()]["final"] Type() <IDENTIFIER> ":" Expression()
-        |
-         [ ForInit() ] ";" [ Expression() ] ";" [ ForUpdate() ]
-      )
+    (
+      LOOKAHEAD([Annotation()]["final"] Type() <IDENTIFIER> ":")
+      [LOOKAHEAD(2) Annotation()]["final"] Type() <IDENTIFIER> ":" Expression()
+    |
+     [ ForInit() ] ";" [ Expression() ] ";" [ ForUpdate() ]
+    )
 
-      ")" Statement()
-
+    ")" Statement()
 }
 
 // TODO: what is this? It doesn't appear to be called from anywhere. It's in the
@@ -1710,63 +1692,56 @@ void ForInit():
 {
 }
 {
-    
-          LOOKAHEAD( [ "final" ] Type() <IDENTIFIER> )
-          LocalVariableDeclaration() 
-        |
-        StatementExpressionList() 
+      LOOKAHEAD( [ "final" ] Type() <IDENTIFIER> )
+      LocalVariableDeclaration()
+    |
+    StatementExpressionList()
 }
 
 void StatementExpressionList():
 {
 }
 {
-    
-        StatementExpression() ( "," StatementExpression() )*
+    StatementExpression() ( "," StatementExpression() )*
 }
 
 void ForUpdate():
 {}
 {
-    
-        StatementExpressionList()
+    StatementExpressionList()
 }
 
 void BreakStatement():
 {}
 {
-  "break" [ <IDENTIFIER> ] ";"
+    "break" [ <IDENTIFIER> ] ";"
 }
 
 void ContinueStatement():
 {}
 {
-  "continue" [ <IDENTIFIER> ] ";"
+    "continue" [ <IDENTIFIER> ] ";"
 }
 
 void ReturnStatement():
 {
 }
 {
-    
-        "return" [ Expression() ] ";"
+    "return" [ Expression() ] ";"
 }
 
 void ThrowStatement():
 {
 }
 {
-    
-        "throw" Expression() ";"
+    "throw" Expression() ";"
 }
 
 void SynchronizedStatement():
 {
 }
 {
-    
-        <SYNCHRONIZED> "(" Expression() ")" Block()
-
+    <SYNCHRONIZED> "(" Expression() ")" Block()
 }
 
 void TryStatement():
@@ -1786,23 +1761,22 @@ void TryStatement():
 {
 }
 {
-    
-        "try" ["(" LocalVariableDeclaration()(LOOKAHEAD(2) ";" LocalVariableDeclaration())* [";"] ")"]
-        Block() 
-        ( "catch" "(" 
-                        (
-                            LOOKAHEAD(3)
-                            FormalParameter() 
-                            |
-                            ClassOrInterfaceType()(LOOKAHEAD(2) "|" ClassOrInterfaceType())+ VariableDeclaratorId()
-                        )
-                  ")" 
-            Block()
-        )*
-        
-        [ "finally" 
-            Block()
-        ]
+    "try" ["(" LocalVariableDeclaration()(LOOKAHEAD(2) ";" LocalVariableDeclaration())* [";"] ")"]
+    Block()
+    ( "catch" "("
+        (
+            LOOKAHEAD(3)
+            FormalParameter()
+            |
+            ClassOrInterfaceType()(LOOKAHEAD(2) "|" ClassOrInterfaceType())+ VariableDeclaratorId()
+        )
+              ")"
+        Block()
+    )*
+
+    [ "finally"
+        Block()
+    ]
 }
 
 /* We use productions to match >>>, >> and > so that we can keep the
@@ -1815,8 +1789,7 @@ void RUNSIGNEDSHIFT():
   ( LOOKAHEAD({ getToken(1).kind == GT &&
                  getToken(1) instanceof Token.GTToken &&
                 ((Token.GTToken)getToken(1)).realKind == RUNSIGNEDSHIFT} )
-   ">" ">" ">"
-  )
+   ">" ">" ">")
 }
 
 void RSIGNEDSHIFT():
@@ -1825,8 +1798,7 @@ void RSIGNEDSHIFT():
   ( LOOKAHEAD({ getToken(1).kind == GT &&
                  getToken(1) instanceof Token.GTToken &&
                 ((Token.GTToken)getToken(1)).realKind == RSIGNEDSHIFT} )
-  ">" ">"
-  )
+  ">" ">")
 }
 
 /* Annotation syntax follows. */
@@ -1835,45 +1807,40 @@ void Annotation():
 {
 }
 {
-    
    LOOKAHEAD( "@" Name() "(" ( <IDENTIFIER> "=" | ")" ))
-   NormalAnnotation()
- |
-   LOOKAHEAD( "@" Name() "(" )
-   SingleMemberAnnotation()
- |
-   MarkerAnnotation()
+       NormalAnnotation()
+     |
+       LOOKAHEAD( "@" Name() "(" )
+       SingleMemberAnnotation()
+     |
+       MarkerAnnotation()
 }
 
 void NormalAnnotation():
 {
 }
 {
-    
-        "@" Name() "(" [ MemberValuePairs() ] ")"
+    "@" Name() "(" [ MemberValuePairs() ] ")"
 }
 
 void MarkerAnnotation():
 {
 }
 {
-    
-        "@" Name()
+    "@" Name()
 }
 
 void SingleMemberAnnotation():
 {
 }
 {
-    
-        "@" Name() "(" MemberValue() ")"
+    "@" Name() "(" MemberValue() ")"
 }
 
 void MemberValuePairs():
 {
 }
 {
-    
     MemberValuePair() ( "," MemberValuePair() )*
 }
 
@@ -1881,7 +1848,6 @@ void MemberValuePair():
 {
 }
 {
-    
     <IDENTIFIER> "=" MemberValue()
 }
 
@@ -1889,20 +1855,18 @@ void MemberValue():
 {
 }
 {
-    
-           LOOKAHEAD(2)
-           Annotation()      
-         |
-           MemberValueArrayInitializer()
-         |
-           ConditionalExpression()
+       LOOKAHEAD(2)
+       Annotation()
+     |
+       MemberValueArrayInitializer()
+     |
+       ConditionalExpression()
 }
 
 void  MemberValueArrayInitializer():
 {
 }
 {
-    
     "{" (MemberValue() ( LOOKAHEAD(2) "," MemberValue() )* [ "," ])? "}"
 }
 
@@ -1913,15 +1877,13 @@ void AnnotationTypeDeclaration():
 {
 }
 {
-    
-        "@" "interface" <IDENTIFIER> AnnotationTypeBody()
+    "@" "interface" <IDENTIFIER> AnnotationTypeBody()
 }
 
 void AnnotationTypeBody():
 {
 }
 {
-    
     "{" ( AnnotationTypeMemberDeclaration() )* "}"
 }
 
@@ -1930,7 +1892,6 @@ void AnnotationTypeMemberDeclaration():
 }
 {
  Modifiers()
- 
      (
          LOOKAHEAD(Type() <IDENTIFIER> "(")
          Type() <IDENTIFIER> "(" ")" [ DefaultValue() ] ";" 
@@ -1946,14 +1907,13 @@ void AnnotationTypeMemberDeclaration():
          FieldDeclaration()
      )
      |
-     ( ";" )
+     ";"
 }
 
 void DefaultValue():
 {
 }
 {
-    
-        "default" MemberValue()
+    "default" MemberValue()
 }
 

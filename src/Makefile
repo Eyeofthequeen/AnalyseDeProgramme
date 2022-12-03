@@ -10,7 +10,7 @@ OUTPUTDIR := out
 
 #SOURCES := StatsAttributs.jj
 #SOURCES := Test.jj
-#SOURCES := ExecOption3/Option3.jj
+#SOURCES := ExecOption4/Option4.jj
 SOURCES := ValidJavaProject/ValidJavaProject.jj
 
 .PHONY: all clean $(SOURCES)
