@@ -11,7 +11,7 @@ OUTPUTDIR := out
 #SOURCES := StatsAttributs.jj
 #SOURCES := Test.jj
 #SOURCES := ExecOption3/Option3.jj
-SOURCES := Merge/Merge.jj
+SOURCES := ValidJavaProject/ValidJavaProject.jj
 
 .PHONY: all clean $(SOURCES)
 
@@ -22,7 +22,7 @@ all: $(SOURCES)
 $(SOURCES):
 	@echo
 	@echo Removing old files from $@...
-	-rm -r $(OBJECTSDIR)/$(basename $(notdir $@))/*
+	-#rm -r $(OBJECTSDIR)/$(basename $(notdir $@))/*
 	-rm -r $(OUTPUTDIR)/$(basename $(notdir $@))/*
 	@echo Parsing $@...
 	javacc -output_directory:$(OBJECTSDIR)/$(basename $(notdir $@)) $@

@@ -47,9 +47,9 @@ options {
 }
 
 PARSER_BEGIN(JavaParser)
-package parser;
 
 import java.io.*;
+import java.util.*;
 
 public class JavaParser
 {
@@ -91,7 +91,7 @@ public class JavaParser
     return true;
   }
 
-  // Main method for testing, here is a one-liner bash script that can be ran from
+  // Main method for testing, here is a one-liner bash script that can be run from
   // the command line:
   // for f in /some/directory/full/of/java/files/*.java; do java -cp . JavaParser $f; done
   public static void main(String args[]) {
@@ -122,348 +122,150 @@ public class JavaParser
       System.out.println("Java Parser Version 1.7:  Encountered errors during parse.");
     }
   }
-  
-  class OutputUtils {
-  	static void pourcentage(String message, int total, int attributes) {
-  		if (total > 0) { System.out.println(message + String.format("%.2f", (float) attributes/total * 100) + "%"); }
-  		else { System.out.println(message + "0%"); }
-  	}
+}
 
-  	static void lineOutput(Integer repeat) {
-  		System.out.println(new String(new char[repeat]).replace("\0", "-"));
-  	}
+//----Option 3-4----
+
+class Link {
+  public String from;
+  public String to;
+  public LinkType type;
+
+  public Link() {}
+  public Link(String from, String to, LinkType type) {
+      this.from = from;
+      this.to = to;
+      this.type = type;
   }
 
-  class TypeAttributeCounter {
-    	private boolean isReferencedAttribute;
-    	private Integer nbSimpleAttributes, nbReferencedAttributes;
-    	Map<String, Integer> nbSimpleAttributesByClass = new HashMap<String, Integer>();
-  	Map<String, Integer> nbReferencedAttributesByClass = new HashMap<String, Integer>();
+  public String toString() {
+      return from + ((type == LinkType.INHERITANCE) ? "---|>" : "-----") + to;
+  }
+}
 
-  	TypeAttributeCounter() {
-  	  	isReferencedAttribute = false;
-  		nbSimpleAttributes =  0;
-  		nbReferencedAttributes = 0;
-  		nbSimpleAttributesByClass = new HashMap<String, Integer>();
-  		nbReferencedAttributesByClass = new HashMap<String, Integer>();
-  	}
+class ClassLink {
+  String name = "";
+  List<Link> links = new ArrayList<>();
 
-  	void incrementSimpleAttributes() {
-  		++nbSimpleAttributes;
-  	}
-
-  	void incrementReferencedAttributes() {
-  		++nbReferencedAttributes;
-  		isReferencedAttribute = true;
-  	}
-
-  	int getTotalForClass(String name) {
-  		return nbSimpleAttributesByClass.get(name) + nbReferencedAttributesByClass.get(name);
-  	}
-
-  	boolean getIsReferencedAttribute() { return isReferencedAttribute; }
-
-  	void reset() { nbSimpleAttributes = nbReferencedAttributes = 0; }
-
-  	void compile(String currentClassName) {
-  		nbSimpleAttributesByClass.put(currentClassName, nbSimpleAttributes);
-  		nbReferencedAttributesByClass.put(currentClassName, nbReferencedAttributes);
-  		reset();
-  	}
-
-  	void resetIsReferenced() { isReferencedAttribute = false; }
-
-  	void output(String name) {
-  	  	Integer lineWidth = 15;
-  	  	Integer total = getTotalForClass(name);
-  	  	String pourcentLine = "Pourcentage d'attribut";
-
-  		System.out.println("\nNombre d'attribut total : " + total);
-  		OutputUtils.lineOutput(lineWidth);
-
-  		System.out.println("Nombre d'attribut de type simple : " + nbSimpleAttributesByClass.get(name));
-  		OutputUtils.pourcentage(pourcentLine + " de type simple : ", total, nbSimpleAttributesByClass.get(name));
-  		OutputUtils.lineOutput(lineWidth);
-
-  		System.out.println("Nombre d'attribut de référence : " + nbReferencedAttributesByClass.get(name));
-  		OutputUtils.pourcentage(pourcentLine + " de référence : ", total, nbReferencedAttributesByClass.get(name));
-  		OutputUtils.lineOutput(lineWidth);
-  	}
+  public void add(Link link) {
+      links.add(link);
   }
 
-  class SpecifierAttributeCounter {
-  	Integer privates, publics, protecteds;
-  	Map<String, Map<Keys, Integer>> nbAttributesBySpecifierByClass = new HashMap<String, Map<Keys, Integer>>();
-
-  	SpecifierAttributeCounter() {
-  		privates = 0;
-  		publics = 0;
-  		protecteds = 0;
-  	}
-
-  	void increment(Keys key) {
-  		switch (key) {
-  			case PRIVATE: ++privates; break;
-  			case PUBLIC: ++publics; break;
-  			case PROTECTED: ++protecteds; break;
-  		}
-  	}
-
-  	void reset() { privates = publics = protecteds = 0; }
-
-  	void compile(String name) {
-  	  	nbAttributesBySpecifierByClass.put(name, new HashMap<Keys, Integer>());
-  		nbAttributesBySpecifierByClass.get(name).put(Keys.PUBLIC, publics);
-  		nbAttributesBySpecifierByClass.get(name).put(Keys.PROTECTED, protecteds);
-  		nbAttributesBySpecifierByClass.get(name).put(Keys.PRIVATE, privates);
-  		reset();
-  	}
-
-  	void output(String name, Integer total) {
-  	  	Integer repeatLong = 15, repeatDefault = 8;
-  	  	String pourcentLine = "Pourcentage d'attribut";
-
-  		System.out.println("Nombre d'attribut public : " + nbAttributesBySpecifierByClass.get(name).get(Keys.PUBLIC));
-  		OutputUtils.pourcentage(pourcentLine + "  public : ", total, nbAttributesBySpecifierByClass.get(name).get(Keys.PUBLIC));
-  		OutputUtils.lineOutput(repeatDefault);
-
-  		System.out.println("Nombre d'attribut private : " + nbAttributesBySpecifierByClass.get(name).get(Keys.PRIVATE));
-  		OutputUtils.pourcentage(pourcentLine + "  private : ", total, nbAttributesBySpecifierByClass.get(name).get(Keys.PRIVATE));
-  		OutputUtils.lineOutput(repeatDefault);
-
-  		System.out.println("Nombre d'attribut protected : " + nbAttributesBySpecifierByClass.get(name).get(Keys.PROTECTED));
-  		OutputUtils.pourcentage(pourcentLine + "  protected : ", total, nbAttributesBySpecifierByClass.get(name).get(Keys.PROTECTED));
-  		OutputUtils.lineOutput(repeatLong);
-  	}
-  }
-
-  class VisibilityLister {
-    	ArrayList<String> allDeclarations;
-    	Map<String, ArrayList<String>> associationsByClass;
-    	private ArrayList<String> permanentVisibilities;
-
-  	VisibilityLister(ArrayList<String> allDeclarations, Map<String, ArrayList<String>> associationsByClass, String name, String specifier) {
-  		this.allDeclarations = allDeclarations;
-  		this.associationsByClass = associationsByClass;
-  		permanentVisibilities = new ArrayList<String>();
-  		compile(name, specifier);
-  	}
-
-
-  	private void compile(String name, String specifier) {
-  		for (Map.Entry<String, ArrayList<String>> entry : associationsByClass.entrySet()) {
-  			String entryClassKey = entry.getKey();
-  			ArrayList<String> entryAssociations = entry.getValue();
-
-  			if (entryClassKey.equals(name)) { continue; }
-
-  			for (String association : entryAssociations) {
-  				if (association.equals(name)) {
-  				  	 permanentVisibilities.add(entryClassKey);
-  				}
-  			}
-  		}
-  	}
-
-  	void output() {
-  		System.out.println("Visible for : " + permanentVisibilities);
-  	}
-  }
-
-  class Stats {
-  	static TypeAttributeCounter typeAttributeCounter = new TypeAttributeCounter();
-  	static SpecifierAttributeCounter specifierAttributeCounter = new SpecifierAttributeCounter();
-
-  	static ArrayList<String> associatedWith = new ArrayList<String>();
-
-  	static ArrayList<String> allDeclaredClasses = new ArrayList<String>();
-
-  	static Map<String, ArrayList<String>> associationsByClass = new HashMap<String, ArrayList<String>>();
-  	static Map<String, String> specifiersByClass = new HashMap<String, String>();
-
-      static ClassLink currentClassLink = new ClassLink();
-
-  	static void compileClasses(String currentClassName, Token specifier) {
-  	  	String spec = (specifier == null) ? "public" : specifier.image;
-  	  	allDeclaredClasses.add(currentClassName);
-
-  		associationsByClass.put(currentClassName, associatedWith);
-  		associatedWith = new ArrayList<String>();
-
-  		specifiersByClass.put(currentClassName, spec);
-
-  		typeAttributeCounter.compile(currentClassName);
-  		specifierAttributeCounter.compile(currentClassName);
-
-          Links.classLinks.add(currentClassLink);
-          currentClassLink = new ClassLink();
-  	}
-
-  	static void output() {
-  	  	Integer repeatLong = 15, repeatDefault = 8;
-
-  		for (Map.Entry<String, String> entry : specifiersByClass.entrySet()) {
-  			String name = entry.getKey();
-  			String specifier = entry.getValue();
-  			VisibilityLister visibilityLister = new VisibilityLister(allDeclaredClasses, associationsByClass, name, specifiersByClass.get(name));
-  			ArrayList<String> associations = associationsByClass.get(name);
-  			String pourcentLine = "Pourcentage d'attribut";
-
-  			System.out.println("\n");
-  			OutputUtils.lineOutput(repeatLong);
-  			System.out.println("Nom de la classe : " + name);
-  			OutputUtils.lineOutput(repeatDefault);
-  			System.out.println("Spécificateur d'accès : " + specifier);
-  			System.out.println("Nombre d'associations : " + associations.size());
-  			System.out.println("Associations : " + associations);
-
-              System.out.println("Héritage: " + Links.get(name).getInheritance().getNames());
-
-  			visibilityLister.output();
-
-  			typeAttributeCounter.output(name);
-  			specifierAttributeCounter.output(name, typeAttributeCounter.getTotalForClass(name));
-  		}
-  	}
-  }
-
-  //----Option 3-4----
-
-  class Link {
-      public String from;
-      public String to;
-      public LinkType type;
-
-      public Link() {}
-      public Link(String from, String to, LinkType type) {
-          this.from = from;
-          this.to = to;
-          this.type = type;
-      }
-
-      public String toString() {
-          return from + ((type == LinkType.INHERITANCE) ? "---|>" : "-----") + to;
-      }
-  }
-
-  class ClassLink {
-      String name = "";
-      List<Link> links = new ArrayList<>();
-
-      public void add(Link link) {
-          links.add(link);
-      }
-
-      public void addAssociation(Token type) {
-          if (type != null) {
-              // check if the first letter is a capital letter
-              if (name.charAt(0) != name.toLowerCase().charAt(0)) {
-                  add(new Link(name, type.image, LinkType.ASSOCIATION));
-              }
+  public void addAssociation(Token type) {
+      if (type != null) {
+          // check if the first letter is a capital letter
+          if (name.charAt(0) != name.toLowerCase().charAt(0)) {
+              add(new Link(name, type.image, LinkType.ASSOCIATION));
           }
       }
-
-      public ClassLink getInheritance() {
-          ClassLink classLink = new ClassLink();
-          for (Link link : links) {
-              if (link.type == LinkType.INHERITANCE)
-                  classLink.add(link);
-          }
-          return classLink;
-      }
-
-      public String getNames() {
-          StringBuilder sb = new StringBuilder();
-          sb.append("[");
-          if (links.size() > 0) {
-              for (Link link : links)
-                  sb.append(link.to).append(", ");
-
-              // remove last comma
-              sb.delete(sb.length() - 2, sb.length());
-          }
-          sb.append("]");
-          return sb.toString();
-      }
-
-      public String toString() {
-          StringBuilder sb = new StringBuilder();
-          if (links.size() > 0) {
-              for (Link link : links)
-                  sb.append(link).append(", ");
-
-              // remove last comma
-              sb.delete(sb.length() - 2, sb.length());
-          }
-          return sb.toString();
-      }
   }
 
-  class Links {
-      static List<ClassLink> classLinks = new ArrayList<>();
-      static Set<String> names = new HashSet<>();
-
-      static void print() {
-          for(String name: names)
-              System.out.println("class " + name);
-
-          for(ClassLink classLink: classLinks)
-              System.out.println(classLink);
+  public ClassLink getInheritance() {
+      ClassLink classLink = new ClassLink();
+      for (Link link : links) {
+          if (link.type == LinkType.INHERITANCE)
+              classLink.add(link);
       }
-
-      static ClassLink get(String name) {
-          for (ClassLink link : classLinks)
-              if (link.name.equalsIgnoreCase(name))
-                  return link;
-
-          return null;
-      }
+      return classLink;
   }
 
-  enum LinkType {
-      INHERITANCE,
-      ASSOCIATION
+  public String getNames() {
+      StringBuilder sb = new StringBuilder();
+      sb.append("[");
+      if (links.size() > 0) {
+          for (Link link : links)
+              sb.append(link.to).append(", ");
+
+          // remove last comma
+          sb.delete(sb.length() - 2, sb.length());
+      }
+      sb.append("]");
+      return sb.toString();
   }
 
-  class Variable {
-       public String type;
-       public String name;
+  public String toString() {
+      StringBuilder sb = new StringBuilder();
+      if (links.size() > 0) {
+          for (Link link : links)
+              sb.append(link).append(", ");
 
-       public Variable(String type, String name) {
-           this.type = type;
-           this.name = name;
-       }
+          // remove last comma
+          sb.delete(sb.length() - 2, sb.length());
+      }
+      return sb.toString();
+  }
+}
 
-       public Variable(Token type, Token name) {
-           this.type = type.image;
-           this.name = name.image;
-       }
+class Links {
+  static List<ClassLink> classLinks = new ArrayList<>();
+  static Set<String> names = new HashSet<>();
+  static ClassLink currentClassLink = new ClassLink();
 
-       public String toString() {
-           return type + " " + name;
-       }
+  static void addCurrent() {
+      classLinks.add(currentClassLink);
+      currentClassLink = new ClassLink();
+  }
+
+  static void print() {
+      for(String name: names)
+          System.out.println("class " + name);
+
+      for(ClassLink classLink: classLinks)
+          System.out.println(classLink);
+  }
+
+  static ClassLink get(String name) {
+      for (ClassLink link : classLinks)
+          if (link.name.equalsIgnoreCase(name))
+              return link;
+
+      return null;
+  }
+}
+
+enum LinkType {
+  INHERITANCE,
+  ASSOCIATION
+}
+
+class Variable {
+   public String type;
+   public String name;
+
+   public Variable(String type, String name) {
+       this.type = type;
+       this.name = name;
    }
 
-   class Calls {
-       private HashMap<String, Integer> calls = new HashMap<>();
+   public Variable(Token type, Token name) {
+       this.type = type.image;
+       this.name = name.image;
+   }
 
-       public void add(String className) {
-           if (!calls.containsKey(className)) {
-               calls.put(className, 0);
-           }
-           calls.replace(className, calls.get(className) + 1);
-       }
+   public String toString() {
+       return type + " " + name;
+   }
+}
 
-       public String toString() {
-           StringBuilder builder = new StringBuilder();
-           for (Map.Entry<String, Integer> entry : calls.entrySet()) {
-               builder.append(entry.getKey());
-               builder.append(" -> ");
-               builder.append(entry.getValue());
-               builder.append("\n");
-           }
-           return builder.toString();
+class Calls {
+   private HashMap<String, Integer> calls = new HashMap<>();
+
+   public void add(String className) {
+       if (!calls.containsKey(className)) {
+           calls.put(className, 0);
        }
+       calls.replace(className, calls.get(className) + 1);
+   }
+
+   public String toString() {
+       StringBuilder builder = new StringBuilder();
+       for (Map.Entry<String, Integer> entry : calls.entrySet()) {
+           builder.append(entry.getKey());
+           builder.append(" -> ");
+           builder.append(entry.getValue());
+           builder.append("\n");
+       }
+       return builder.toString();
    }
 }
 
@@ -788,14 +590,12 @@ void CompilationUnit():
 {
 }
 {
-      (
-          
-           [ LOOKAHEAD(2) PackageDeclaration() ]
-           ( ImportDeclaration() )*
-           (TypeDeclaration())*
-           
-           <EOF>
-       )
+
+    [ LOOKAHEAD(2) PackageDeclaration() ]
+    ( ImportDeclaration() )*
+    (TypeDeclaration())*
+    {Links.print();}
+    <EOF>
 }
 
 
@@ -882,17 +682,21 @@ void TypeDeclaration():
 
 void ClassOrInterfaceDeclaration():
 {
+ Token name;
+ ClassLink classLink;
 }
 {
     
       ( 
           "class" | "interface" 
       )
-      <IDENTIFIER>
+      name=<IDENTIFIER>
+      {Links.currentClassLink = new ClassLink(); Links.currentClassLink.name = name.image;}
       [ TypeParameters() ]
       [ ExtendsList() ]
       [ ImplementsList() ]
       ClassOrInterfaceBody()
+      {Links.addCurrent();}
 
       /* danson, added this check for trailing semi-colon.  Apparently, this has been
       legal since the beginning of Java, some sort of a C hold-over.  Sun's latest
@@ -903,23 +707,28 @@ void ClassOrInterfaceDeclaration():
 
 void ExtendsList():
 {
+ String extension;
 }
 {
-    
-
-       "extends" ClassOrInterfaceType()
-       ( "," ClassOrInterfaceType() )*
+       "extends" extension=ClassOrInterfaceType()
+       {Links.currentClassLink.add(new Link(Links.currentClassLink.name, extension, LinkType.INHERITANCE));}
+       (
+       "," extension=ClassOrInterfaceType()
+       {Links.currentClassLink.add(new Link(Links.currentClassLink.name, extension, LinkType.INHERITANCE));}
+       )*
 
 }
 
 void ImplementsList():
 {
+ String implementation;
 }
 {
-    
-
-        "implements" ClassOrInterfaceType()
-       ( "," ClassOrInterfaceType() )*
+        "implements" implementation=ClassOrInterfaceType()
+        {Links.currentClassLink.add(new Link(Links.currentClassLink.name, implementation, LinkType.INHERITANCE));}
+       ( "," ClassOrInterfaceType()
+       {Links.currentClassLink.add(new Link(Links.currentClassLink.name, implementation, LinkType.INHERITANCE));}
+       )*
 
 }
 
@@ -957,28 +766,24 @@ void TypeParameters():
 {
 }
 {
-    
+        "<"
         (
-            "<"
-            (
+        TypeParameter()
+        )?
+        (
+            ","
             TypeParameter()
-            )?
-            (
-                ","
-                TypeParameter()
-            )*
-            ">"
-        )
+        )*
+        ">"
 }
 
 void TypeParameter():
 {
+ Token genericType;
 }
 {
-    
-        (
-            <IDENTIFIER> [ TypeBound() ]
-        )
+        genericType=<IDENTIFIER> [ TypeBound() ]
+        {Links.currentClassLink.add(new Link(Links.currentClassLink.name, genericType.image, LinkType.ASSOCIATION));}
 
 }
 
@@ -986,38 +791,29 @@ void TypeBound():
 {
 }
 {
-    
-
+        "extends"
+        ClassOrInterfaceType()
         (
-            "extends"
+            "&"
             ClassOrInterfaceType()
-            (
-                "&"
-                ClassOrInterfaceType()
-            )*
-        )
+        )*
 }
 
 void ClassOrInterfaceBody():
 {
 }
 {
-    
-
+        "{"
         (
-            "{"
-            (
-                ClassOrInterfaceBodyDeclaration()
-            )*
-            "}"
-        )
+            ClassOrInterfaceBodyDeclaration()
+        )*
+        "}"
 }
 
 void ClassOrInterfaceBodyDeclaration():
 {
 }
 {
-    
           (
           LOOKAHEAD(2)
           Initializer()
@@ -1211,28 +1007,33 @@ void Type():
 
 void ReferenceType():
 {
+ String referenceName;
 }
 {
-    
-        (
-            LOOKAHEAD(3)
-            PrimitiveType() ( LOOKAHEAD(2) "[" "]" )+
-        |
-        ( ClassOrInterfaceType() ) ( LOOKAHEAD(2) "[" "]")*
-        )
+    LOOKAHEAD(3)
+        PrimitiveType() ( LOOKAHEAD(2) "[" "]" )+
+    |
+    (
+        referenceName=ClassOrInterfaceType()
+        {Links.currentClassLink.add(new Link(Links.currentClassLink.name, referenceName, LinkType.ASSOCIATION));}
+    )
+    ( LOOKAHEAD(2) "[" "]")*
 }
 
-void ClassOrInterfaceType():
+String ClassOrInterfaceType():
 {
+ Token name;
+ StringBuilder sb = new StringBuilder();
 }
 {
     
-        (
-          <IDENTIFIER> [ LOOKAHEAD(2) TypeArguments() ]
-          ( LOOKAHEAD(2) "." 
-              <IDENTIFIER> [ LOOKAHEAD(2) TypeArguments() ]
-          )*
-        )
+        name=<IDENTIFIER> [ LOOKAHEAD(2) TypeArguments() ]
+        {sb.append(name.image);}
+        ( LOOKAHEAD(2) "."
+            name=<IDENTIFIER> [ LOOKAHEAD(2) TypeArguments() ]
+            {sb.append(".").append(name.image);}
+        )*
+        {return sb.toString();}
 }
 
 void TypeArguments():
