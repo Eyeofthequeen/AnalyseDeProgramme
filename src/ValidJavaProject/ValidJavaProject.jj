@@ -10,6 +10,8 @@ PARSER_BEGIN(JavaParser)
 import java.io.*;
 import java.util.*;
 
+//TODO: read whole project instead of single file
+
 public class JavaParser
 {
 
@@ -281,6 +283,7 @@ class Stats {
 			System.out.println("Spécificateur d'accès : " + specifier);
 			System.out.println("Nombre d'associations : " + associations.size());
 			System.out.println("Associations : " + associations);
+            System.out.println("Couplage : " + ClassCalls.getCalls(name));
 
 			visibilityLister.output();
 
@@ -381,7 +384,7 @@ class Links {
   }
 
   static void print() {
-      System.out.println("------Class list------");
+      System.out.println("\n------Class list------");
       for(String name: names)
           System.out.println(name);
 
@@ -477,6 +480,10 @@ class ClassCalls {
         classCalls.get(currentClass).add(className);
     }
 
+    public static Calls getCalls(String className) {
+        return (classCalls.containsKey(className)) ? classCalls.get(className) : new Calls();
+    }
+
     public static void print() {
         for (Map.Entry<String, Calls> entry : classCalls.entrySet()) {
             System.out.println(entry.getKey());
@@ -496,13 +503,17 @@ class Calls {
    }
 
    public String toString() {
+       if (calls.isEmpty())
+           return "";
+
        StringBuilder builder = new StringBuilder();
        for (Map.Entry<String, Integer> entry : calls.entrySet()) {
            builder.append(entry.getKey());
            builder.append(" -> ");
            builder.append(entry.getValue());
-           builder.append("\n");
+           builder.append(", ");
        }
+       builder.setLength(builder.length() - 2);
        return builder.toString();
    }
 }
@@ -831,7 +842,7 @@ void CompilationUnit():
     [ LOOKAHEAD(2) PackageDeclaration() ]
     ( ImportDeclaration() )*
     (TypeDeclaration())*
-    {Links.print(); System.out.println(); ClassCalls.print(); Stats.output();}
+    {Links.print(); System.out.println(); Stats.output();}
     <EOF>
 }
 
