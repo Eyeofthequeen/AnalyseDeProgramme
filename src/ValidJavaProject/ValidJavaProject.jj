@@ -83,6 +83,216 @@ public class JavaParser
   }
 }
 
+
+
+
+
+class OutputUtils {
+	static void pourcentage(String message, int total, int attributes) {
+		if (total > 0) { System.out.println(message + String.format("%.2f", (float) attributes/total * 100) + "%"); }
+		else { System.out.println(message + "0%"); }
+	}
+
+	static void lineOutput(Integer repeat) {
+		System.out.println(new String(new char[repeat]).replace("\0", "-"));
+	}
+}
+
+class TypeAttributeCounter {
+  	private boolean isReferencedAttribute;
+  	private Integer nbSimpleAttributes, nbReferencedAttributes;
+  	Map<String, Integer> nbSimpleAttributesByClass = new HashMap<>();
+	Map<String, Integer> nbReferencedAttributesByClass = new HashMap<>();
+
+	TypeAttributeCounter() {
+	  	isReferencedAttribute = false;
+		nbSimpleAttributes =  0;
+		nbReferencedAttributes = 0;
+		nbSimpleAttributesByClass = new HashMap<>();
+		nbReferencedAttributesByClass = new HashMap<>();
+	}
+
+	void incrementSimpleAttributes() {
+		++nbSimpleAttributes;
+	}
+
+	void incrementReferencedAttributes() {
+		++nbReferencedAttributes;
+		isReferencedAttribute = true;
+	}
+
+	int getTotalForClass(String name) {
+		return nbSimpleAttributesByClass.get(name) + nbReferencedAttributesByClass.get(name);
+	}
+
+	boolean getIsReferencedAttribute() { return isReferencedAttribute; }
+
+	void reset() { nbSimpleAttributes = nbReferencedAttributes = 0; }
+
+	void compile(String currentClassName) {
+		nbSimpleAttributesByClass.put(currentClassName, nbSimpleAttributes);
+		nbReferencedAttributesByClass.put(currentClassName, nbReferencedAttributes);
+		reset();
+	}
+
+	void resetIsReferenced() { isReferencedAttribute = false; }
+
+	void output(String name) {
+	  	Integer lineWidth = 15;
+	  	Integer total = getTotalForClass(name);
+	  	String pourcentLine = "Pourcentage d'attribut";
+
+		System.out.println("\nNombre d'attribut total : " + total);
+		OutputUtils.lineOutput(lineWidth);
+
+		System.out.println("Nombre d'attribut de type simple : " + nbSimpleAttributesByClass.get(name));
+		OutputUtils.pourcentage(pourcentLine + " de type simple : ", total, nbSimpleAttributesByClass.get(name));
+		OutputUtils.lineOutput(lineWidth);
+
+		System.out.println("Nombre d'attribut de référence : " + nbReferencedAttributesByClass.get(name));
+		OutputUtils.pourcentage(pourcentLine + " de référence : ", total, nbReferencedAttributesByClass.get(name));
+		OutputUtils.lineOutput(lineWidth);
+	}
+}
+
+class SpecifierAttributeCounter {
+	Integer privates, publics, protecteds;
+	Map<String, Map<Keys, Integer>> nbAttributesBySpecifierByClass = new HashMap<>();
+
+	SpecifierAttributeCounter() {
+		privates = 0;
+		publics = 0;
+		protecteds = 0;
+	}
+
+	void increment(Keys key) {
+		switch (key) {
+			case PRIVATE: ++privates; break;
+			case PUBLIC: ++publics; break;
+			case PROTECTED: ++protecteds; break;
+		}
+	}
+
+	void reset() { privates = publics = protecteds = 0; }
+
+	void compile(String name) {
+	  	nbAttributesBySpecifierByClass.put(name, new HashMap<Keys, Integer>());
+		nbAttributesBySpecifierByClass.get(name).put(Keys.PUBLIC, publics);
+		nbAttributesBySpecifierByClass.get(name).put(Keys.PROTECTED, protecteds);
+		nbAttributesBySpecifierByClass.get(name).put(Keys.PRIVATE, privates);
+		reset();
+	}
+
+	void output(String name, Integer total) {
+	  	Integer repeatLong = 15, repeatDefault = 8;
+	  	String pourcentLine = "Pourcentage d'attribut";
+
+		System.out.println("Nombre d'attribut public : " + nbAttributesBySpecifierByClass.get(name).get(Keys.PUBLIC));
+		OutputUtils.pourcentage(pourcentLine + "  public : ", total, nbAttributesBySpecifierByClass.get(name).get(Keys.PUBLIC));
+		OutputUtils.lineOutput(repeatDefault);
+
+		System.out.println("Nombre d'attribut private : " + nbAttributesBySpecifierByClass.get(name).get(Keys.PRIVATE));
+		OutputUtils.pourcentage(pourcentLine + "  private : ", total, nbAttributesBySpecifierByClass.get(name).get(Keys.PRIVATE));
+		OutputUtils.lineOutput(repeatDefault);
+
+		System.out.println("Nombre d'attribut protected : " + nbAttributesBySpecifierByClass.get(name).get(Keys.PROTECTED));
+		OutputUtils.pourcentage(pourcentLine + "  protected : ", total, nbAttributesBySpecifierByClass.get(name).get(Keys.PROTECTED));
+		OutputUtils.lineOutput(repeatLong);
+	}
+}
+
+class VisibilityLister {
+  	ArrayList<String> allDeclarations;
+  	Map<String, ArrayList<String>> associationsByClass;
+  	private ArrayList<String> permanentVisibilities;
+
+	VisibilityLister(ArrayList<String> allDeclarations, Map<String, ArrayList<String>> associationsByClass, String name, String specifier) {
+		this.allDeclarations = allDeclarations;
+		this.associationsByClass = associationsByClass;
+		permanentVisibilities = new ArrayList<>();
+		compile(name, specifier);
+	}
+
+
+	private void compile(String name, String specifier) {
+		for (Map.Entry<String, ArrayList<String>> entry : associationsByClass.entrySet()) {
+			String entryClassKey = entry.getKey();
+			ArrayList<String> entryAssociations = entry.getValue();
+
+			if (entryClassKey.equals(name)) { continue; }
+
+			for (String association : entryAssociations) {
+				if (association.equals(name)) {
+				  	 permanentVisibilities.add(entryClassKey);
+				}
+			}
+		}
+	}
+
+	void output() {
+		System.out.println("Visible for : " + permanentVisibilities);
+	}
+}
+
+class Stats {
+	static TypeAttributeCounter typeAttributeCounter = new TypeAttributeCounter();
+	static SpecifierAttributeCounter specifierAttributeCounter = new SpecifierAttributeCounter();
+
+	static ArrayList<String> associatedWith = new ArrayList<>();
+
+	static ArrayList<String> allDeclaredClasses = new ArrayList<>();
+
+	static Map<String, ArrayList<String>> associationsByClass = new HashMap<>();
+	static Map<String, String> specifiersByClass = new HashMap<>();
+
+	static void compileClasses(String currentClassName, String specifier) {
+	  	String spec = (specifier == null || specifier.isBlank()) ? "public" : specifier;
+	  	allDeclaredClasses.add(currentClassName);
+
+		associationsByClass.put(currentClassName, associatedWith);
+		associatedWith = new ArrayList<>();
+
+		specifiersByClass.put(currentClassName, spec);
+
+		typeAttributeCounter.compile(currentClassName);
+		specifierAttributeCounter.compile(currentClassName);
+	}
+
+    static void incrementAttributeCounter(String visibility) {
+        if (visibility == null || visibility.equals("public")) { Stats.specifierAttributeCounter.increment(Keys.PUBLIC); }
+        else if (visibility.equals("private")) { Stats.specifierAttributeCounter.increment(Keys.PRIVATE); }
+        else if (visibility.equals("protected")) { Stats.specifierAttributeCounter.increment(Keys.PROTECTED); }
+    }
+
+	static void output() {
+	  	Integer repeatLong = 15, repeatDefault = 8;
+
+		for (Map.Entry<String, String> entry : specifiersByClass.entrySet()) {
+			String name = entry.getKey();
+			String specifier = entry.getValue();
+			VisibilityLister visibilityLister = new VisibilityLister(allDeclaredClasses, associationsByClass, name, specifiersByClass.get(name));
+			ArrayList<String> associations = associationsByClass.get(name);
+			String pourcentLine = "Pourcentage d'attribut";
+
+			System.out.println("\n");
+			OutputUtils.lineOutput(repeatLong);
+			System.out.println("Nom de la classe : " + name);
+			OutputUtils.lineOutput(repeatDefault);
+			System.out.println("Spécificateur d'accès : " + specifier);
+			System.out.println("Nombre d'associations : " + associations.size());
+			System.out.println("Associations : " + associations);
+
+			visibilityLister.output();
+
+			typeAttributeCounter.output(name);
+			specifierAttributeCounter.output(name, typeAttributeCounter.getTotalForClass(name));
+		}
+	}
+}
+
+enum Keys { PRIVATE, PROTECTED, PUBLIC }
+
+
 //----Option 3-4----
 
 class Link {
@@ -171,12 +381,17 @@ class Links {
   }
 
   static void print() {
-//      for(String name: names)
-//          System.out.println("class " + name);
+      System.out.println("------Class list------");
+      for(String name: names)
+          System.out.println(name);
+
+      System.out.println("------Class links------");
 
       for(ClassLink classLink: classLinks)
           if (classLink.hasLinks())
               System.out.println(classLink);
+
+      System.out.println("-----------------------");
   }
 
   static ClassLink get(String name) {
@@ -616,7 +831,7 @@ void CompilationUnit():
     [ LOOKAHEAD(2) PackageDeclaration() ]
     ( ImportDeclaration() )*
     (TypeDeclaration())*
-    {Links.print(); System.out.println(); ClassCalls.print();}
+    {Links.print(); System.out.println(); ClassCalls.print(); Stats.output();}
     <EOF>
 }
 
@@ -644,20 +859,21 @@ void  ImportDeclaration():
  * TODO: write productions for the actual modifiers allowed for each construct.
  */
 
-void Modifiers():
+String Modifiers():
 {
+ Token visibilityModifier = null;
 }
 {
  (
   LOOKAHEAD(2)
   (
-   <PUBLIC>
+   visibilityModifier=<PUBLIC>
   |
    <STATIC>
   |
-   <PROTECTED>
+   visibilityModifier=<PROTECTED>
   |
-   <PRIVATE> 
+   visibilityModifier=<PRIVATE>
   |
    <FINAL>
   |
@@ -676,6 +892,7 @@ void Modifiers():
    Annotation()
   )
  )*
+ {return (visibilityModifier != null) ? visibilityModifier.image : null;}
 }
 
 /*
@@ -685,14 +902,15 @@ void Modifiers():
 // Handle classes, interfaces, enums, and annotations.
 void TypeDeclaration():
 {
+ String visibility;
 }
 {
     ";"
     |
-    Modifiers()
+    visibility=Modifiers()
     (
       LOOKAHEAD(2)
-     ClassOrInterfaceDeclaration()
+     ClassOrInterfaceDeclaration(visibility)
     |
      EnumDeclaration()
     |
@@ -700,7 +918,7 @@ void TypeDeclaration():
     )
 }
 
-void ClassOrInterfaceDeclaration():
+void ClassOrInterfaceDeclaration(String visibility):
 {
  Token name;
  ClassLink classLink;
@@ -710,12 +928,19 @@ void ClassOrInterfaceDeclaration():
           "class" | "interface" 
       )
       name=<IDENTIFIER>
-      {Links.currentClassLink = new ClassLink(); Links.currentClassLink.name = name.image; ClassVariables.currentClassName = name.image;}
+      {
+        Links.currentClassLink = new ClassLink();
+        Links.currentClassLink.name = name.image;
+        ClassVariables.currentClassName = name.image;
+      }
       [ TypeParameters() ]
       [ ExtendsList() ]
       [ ImplementsList() ]
       ClassOrInterfaceBody()
-      {Links.addCurrent();}
+      {
+        Links.addCurrent();
+        Stats.compileClasses(name.image, visibility);
+      }
 
       /* danson, added this check for trailing semi-colon.  Apparently, this has been
       legal since the beginning of Java, some sort of a C hold-over.  Sun's latest
@@ -826,16 +1051,17 @@ void ClassOrInterfaceBody():
 
 void ClassOrInterfaceBodyDeclaration():
 {
+ String visibility;
 }
 {
       LOOKAHEAD(2)
       Initializer()
     |
-      Modifiers() // Just get all the modifiers out of the way. If you want to do
+      visibility=Modifiers() // Just get all the modifiers out of the way. If you want to do
                   // more checks, pass the modifiers down to the member
       (
           LOOKAHEAD(3)
-          ClassOrInterfaceDeclaration()
+          ClassOrInterfaceDeclaration(visibility)
         |
           EnumDeclaration()
         |
@@ -843,33 +1069,33 @@ void ClassOrInterfaceBodyDeclaration():
           ConstructorDeclaration()
         |
           LOOKAHEAD( Type() <IDENTIFIER> ( "[" "]" )* ( "," | "=" | ";" ) )
-          FieldDeclaration()
+          FieldDeclaration(visibility)
         |
           LOOKAHEAD(2)
           AnnotationTypeDeclaration()
         |
           MethodDeclaration()
-
       )
     |
       ";"
 }
 
-void FieldDeclaration():
+void FieldDeclaration(String visibility):
 {
  String type, id;
 }
 {
-    
-
-        // Modifiers are already matched in the caller
-        type=Type() id=VariableDeclarator()
+    // Modifiers are already matched in the caller
+    type=Type() id=VariableDeclarator()
+    {
+        ClassVariables.classVariables.add(new Variable(type, id));
+        Stats.incrementAttributeCounter(visibility);
+    }
+    (
+        "," id=VariableDeclarator()
         {ClassVariables.classVariables.add(new Variable(type, id));}
-        (
-            "," id=VariableDeclarator()
-            {ClassVariables.classVariables.add(new Variable(type, id));}
-        )*
-        ";"
+    )*
+    ";"
 }
 
 String VariableDeclarator():
@@ -877,9 +1103,8 @@ String VariableDeclarator():
  String id;
 }
 {
-    
-        id=VariableDeclaratorId() [ "=" VariableInitializer() ]
-        {return id;}
+    id=VariableDeclaratorId() [ "=" VariableInitializer() ]
+    {return id;}
 }
 
 String VariableDeclaratorId():
@@ -887,21 +1112,20 @@ String VariableDeclaratorId():
  Token id;
 }
 {
-    
-        id=<IDENTIFIER>
-        ( 
-            "[" "]" 
-        )*
-        {return id.image;}
+    id=<IDENTIFIER>
+    (
+        "[" "]"
+    )*
+    {return id.image;}
 }
 
 void VariableInitializer():
 {
 }
 {
-          ArrayInitializer()
-        |
-          Expression()
+      ArrayInitializer()
+    |
+      Expression()
 }
 
 void ArrayInitializer():
@@ -944,7 +1168,6 @@ void FormalParameters():
 {
 }
 {
-    
     "("
     [
       FormalParameter()
@@ -961,7 +1184,6 @@ void FormalParameter():
  String type, id;
 }
 {
-    
     Modifiers()
     type=Type()
     [
@@ -975,7 +1197,6 @@ void ConstructorDeclaration():
 {
 }
 {
-    
     [ Annotation() ]
     [ TypeParameters() ]
     <IDENTIFIER> FormalParameters() [ "throws" NameList() ]
@@ -999,10 +1220,10 @@ void Initializer():
 {
 }
 {
-    
-        [ <STATIC> ] Block()
+    [ <STATIC> ] Block()
 }
 
+// TODO: OPTION 2 HERE
 String Type():
 {
  String type;
@@ -1034,7 +1255,6 @@ String ClassOrInterfaceType():
  StringBuilder sb = new StringBuilder();
 }
 {
-    
     name=<IDENTIFIER> [ LOOKAHEAD(2) TypeArguments() ]
     {sb.append(name.image);}
     ( LOOKAHEAD(2) "."
@@ -1048,7 +1268,6 @@ void TypeArguments():
 {
 }
 {
-    
      <DIAMOND>
     |
     (
@@ -1071,7 +1290,6 @@ void WildcardBounds():
 {
 }
 {
-    
     "extends" ReferenceType()
     |
     "super" ReferenceType()
@@ -1576,7 +1794,7 @@ void BlockStatement():
           LOOKAHEAD(3)
           Statement()
         |
-          ClassOrInterfaceDeclaration()
+          ClassOrInterfaceDeclaration("")
     )
 }
 
@@ -1894,25 +2112,26 @@ void AnnotationTypeBody():
 
 void AnnotationTypeMemberDeclaration():
 {
+ String visibility;
 }
 {
- Modifiers()
-     (
-         LOOKAHEAD(Type() <IDENTIFIER> "(")
-         Type() <IDENTIFIER> "(" ")" [ DefaultValue() ] ";" 
-         |
-         LOOKAHEAD(3)
-         ClassOrInterfaceDeclaration()
-         |
-         EnumDeclaration()
-         |
-         LOOKAHEAD(2)
-         AnnotationTypeDeclaration()
-         |
-         FieldDeclaration()
-     )
-     |
-     ";"
+    visibility=Modifiers()
+        (
+          LOOKAHEAD(Type() <IDENTIFIER> "(")
+          Type() <IDENTIFIER> "(" ")" [ DefaultValue() ] ";"
+        |
+          LOOKAHEAD(3)
+          ClassOrInterfaceDeclaration(visibility)
+        |
+          EnumDeclaration()
+        |
+          LOOKAHEAD(2)
+          AnnotationTypeDeclaration()
+        |
+          FieldDeclaration(visibility)
+        )
+    |
+      ";"
 }
 
 void DefaultValue():
