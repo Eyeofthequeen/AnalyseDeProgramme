@@ -1080,20 +1080,33 @@ void ClassOrInterfaceBodyDeclaration():
       ";"
 }
 
+// TODO: Add option 2 here
 void FieldDeclaration(String visibility):
 {
- String type, id;
+ String reference = null, primitive = null, type, id;
+ boolean isReference;
 }
 {
     // Modifiers are already matched in the caller
-    type=Type() id=VariableDeclarator()
+    (LOOKAHEAD(2) reference=ReferenceType() | primitive=PrimitiveType()) id=VariableDeclarator()
     {
+        if (reference == null) {
+            type = primitive;
+            isReference = false;
+            Stats.typeAttributeCounter.incrementSimpleAttributes();
+        } else {
+            type = reference;
+            isReference = true;
+            Stats.associatedWith.add(type);
+            Stats.typeAttributeCounter.incrementReferencedAttributes();
+        }
         ClassVariables.classVariables.add(new Variable(type, id));
         Stats.incrementAttributeCounter(visibility);
     }
     (
         "," id=VariableDeclarator()
         {ClassVariables.classVariables.add(new Variable(type, id));}
+        {if (isReference) Stats.typeAttributeCounter.incrementReferencedAttributes(); else Stats.typeAttributeCounter.incrementSimpleAttributes();}
     )*
     ";"
 }
@@ -1223,7 +1236,6 @@ void Initializer():
     [ <STATIC> ] Block()
 }
 
-// TODO: OPTION 2 HERE
 String Type():
 {
  String type;
