@@ -16,7 +16,7 @@ public class JavaParser
 {
 
    private InputStream inputStream = null;
-   private static Queue<String> files = null;
+   private static List<String> files = null;
 
     /**
      * Constructor for JavaParser.
@@ -28,9 +28,10 @@ public class JavaParser
       try {
           File file = new File(filename);
           if (file.isDirectory()) {
-              files = new LinkedList<>();
+              files = new ArrayList<>();
               getFiles(file);
-              inputStream = new FileInputStream(files.poll());
+              System.out.println(files.get(0));
+              inputStream = new FileInputStream(files.get(0));
           } else {
               inputStream = new FileInputStream(filename);
           }
@@ -41,8 +42,8 @@ public class JavaParser
       }
    }
 
-   JavaParser() throws FileNotFoundException {
-       inputStream = new FileInputStream(files.poll());
+   JavaParser(int index) throws FileNotFoundException {
+       inputStream = new FileInputStream(files.get(index));
        jj_input_stream = new JavaCharStream(inputStream);
        token_source = new JavaParserTokenManager(jj_input_stream);
        token = new Token();
@@ -84,7 +85,7 @@ public class JavaParser
   // Main method for testing, here is a one-liner bash script that can be run from
   // the command line:
   // for f in /some/directory/full/of/java/files/*.java; do java -cp . JavaParser $f; done
-  public static void main(String args[]) {
+  public static void main(String[] args) {
     JavaParser parser;
     if (args.length == 0) {
       System.out.println("Java Parser Version 1.7:  Reading from standard input...");
@@ -100,15 +101,19 @@ public class JavaParser
       return;
     }
     try {
-      for (int i = 0; i < files.size(); i++) {
-        parser.CompilationUnit();
-        try {
-            parser = new JavaParser();
-          } catch (FileNotFoundException e) {
-            System.out.println("Java Parser Version 1.7:  File " + args[0] + " not found.");
-            return;
+      if (files != null)
+          for (int i = 0; i < files.size(); i++) {
+            try {
+                System.out.println(files.get(i));
+                parser = new JavaParser(i);
+                parser.CompilationUnit();
+              } catch (FileNotFoundException e) {
+                System.out.println("Java Parser Version 1.7:  File " + args[0] + " not found.");
+                return;
+              }
           }
-      }
+        else
+          parser.CompilationUnit();
       System.out.println("Java Parser Version 1.7:  Java program parsed successfully.");
     } catch (ParseException e) {
       System.out.println(e.getMessage());
@@ -292,6 +297,15 @@ class Stats {
 		specifierAttributeCounter.compile(currentClassName);
 	}
 
+    static void reset() {
+        typeAttributeCounter = new TypeAttributeCounter();
+        specifierAttributeCounter = new SpecifierAttributeCounter();
+        associatedWith = new ArrayList<>();
+        allDeclaredClasses = new ArrayList<>();
+        associationsByClass = new HashMap<>();
+        specifiersByClass = new HashMap<>();
+    }
+
     static void incrementAttributeCounter(String visibility) {
         if (visibility == null || visibility.equals("public")) { Stats.specifierAttributeCounter.increment(Keys.PUBLIC); }
         else if (visibility.equals("private")) { Stats.specifierAttributeCounter.increment(Keys.PRIVATE); }
@@ -415,6 +429,12 @@ class Links {
       currentClassLink = new ClassLink();
   }
 
+  static void reset() {
+      classLinks = new ArrayList<>();
+      names = new HashSet<>();
+      currentClassLink = new ClassLink();
+  }
+
   static void print() {
       System.out.println("\n------Class list------");
       for(String name: names)
@@ -456,6 +476,12 @@ class ClassVariables {
 
     public static void resetFunction() {
         functionVariables.clear();
+    }
+
+    static void reset() {
+        functionVariables = new HashSet<>();
+        classVariables = new HashSet<>();
+        currentClassName = null;
     }
 
     public static Variable getVariable(String variableName) {
@@ -503,6 +529,10 @@ class Variable {
 
 class ClassCalls {
     private static HashMap<String, Calls> classCalls = new HashMap<>();
+
+    static void reset() {
+        classCalls = new HashMap<>();
+    }
 
     public static void addCall(String className) {
         String currentClass = ClassVariables.currentClassName;
@@ -871,6 +901,7 @@ void CompilationUnit():
 {
 }
 {
+    {Stats.reset(); ClassCalls.reset();}
     [ LOOKAHEAD(2) PackageDeclaration() ]
     ( ImportDeclaration() )*
     (TypeDeclaration())*
