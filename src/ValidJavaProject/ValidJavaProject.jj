@@ -16,6 +16,7 @@ public class JavaParser
 {
 
    private InputStream inputStream = null;
+   private static Queue<String> files = null;
 
     /**
      * Constructor for JavaParser.
@@ -25,12 +26,28 @@ public class JavaParser
    {
       this(System.in);
       try {
-          inputStream = new FileInputStream(new File(filename));
+          File file = new File(filename);
+          if (file.isDirectory()) {
+              files = new LinkedList<>();
+              getFiles(file);
+              inputStream = new FileInputStream(files.poll());
+          } else {
+              inputStream = new FileInputStream(filename);
+          }
           ReInit(inputStream);
       }
       catch(Exception e) {
         e.printStackTrace();
       }
+   }
+
+   JavaParser() throws FileNotFoundException {
+       inputStream = new FileInputStream(files.poll());
+       jj_input_stream = new JavaCharStream(inputStream);
+       token_source = new JavaParserTokenManager(jj_input_stream);
+       token = new Token();
+       jj_ntk = -1;
+       ReInit(inputStream);
    }
 
    JavaParser(JavaCharStream stream) {
@@ -40,6 +57,18 @@ public class JavaParser
         jj_ntk = -1;
    }
 
+   private void getFiles(File directory) {
+       if (directory.listFiles() == null)
+           return;
+
+       for (File file : directory.listFiles()) {
+           if (file.isFile() && file.getName().endsWith(".java")) {
+               files.add(file.getPath());
+           } else {
+               getFiles(file);
+           }
+       }
+   }
 
   /*
    * Returns true if the next token is not in the FOLLOW list of "expansion".
@@ -62,12 +91,7 @@ public class JavaParser
       parser = new JavaParser(System.in);
     } else if (args.length == 1) {
       System.out.println("Java Parser Version 1.7:  Reading from file " + args[0] + "...");
-      try {
-        parser = new JavaParser(new java.io.FileInputStream(args[0]));
-      } catch (java.io.FileNotFoundException e) {
-        System.out.println("Java Parser Version 1.7:  File " + args[0] + " not found.");
-        return;
-      }
+      parser = new JavaParser(args[0]);
     } else {
       System.out.println("Java Parser Version 1.7:  Usage is one of:");
       System.out.println("         java JavaParser < inputfile");
@@ -76,7 +100,15 @@ public class JavaParser
       return;
     }
     try {
-      parser.CompilationUnit();
+      for (int i = 0; i < files.size(); i++) {
+        parser.CompilationUnit();
+        try {
+            parser = new JavaParser();
+          } catch (FileNotFoundException e) {
+            System.out.println("Java Parser Version 1.7:  File " + args[0] + " not found.");
+            return;
+          }
+      }
       System.out.println("Java Parser Version 1.7:  Java program parsed successfully.");
     } catch (ParseException e) {
       System.out.println(e.getMessage());
