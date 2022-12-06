@@ -10,7 +10,6 @@ PARSER_BEGIN(JavaParser)
 import java.io.*;
 import java.util.*;
 
-//TODO: read whole project instead of single file
 
 public class JavaParser
 {
@@ -114,6 +113,8 @@ public class JavaParser
           }
         else
           parser.CompilationUnit();
+
+        Links.print();
       System.out.println("Java Parser Version 1.7:  Java program parsed successfully.");
     } catch (ParseException e) {
       System.out.println(e.getMessage());
@@ -140,8 +141,8 @@ class OutputUtils {
 class TypeAttributeCounter {
   	private boolean isReferencedAttribute;
   	private Integer nbSimpleAttributes, nbReferencedAttributes;
-  	Map<String, Integer> nbSimpleAttributesByClass = new HashMap<>();
-	Map<String, Integer> nbReferencedAttributesByClass = new HashMap<>();
+  	Map<String, Integer> nbSimpleAttributesByClass;
+	Map<String, Integer> nbReferencedAttributesByClass;
 
 	TypeAttributeCounter() {
 	  	isReferencedAttribute = false;
@@ -273,6 +274,24 @@ class VisibilityLister {
 	}
 }
 
+class StatsMemento extends Stats {
+    TypeAttributeCounter typeAttributeCounter;
+    SpecifierAttributeCounter specifierAttributeCounter;
+    ArrayList<String> associatedWith;
+    ArrayList<String> allDeclaredClasses;
+    Map<String, ArrayList<String>> associationsByClass;
+    Map<String, String> specifiersByClass;
+
+    public StatsMemento() {
+//        this.typeAttributeCounter = Stats.typeAttributeCounter;
+        this.specifierAttributeCounter = Stats.specifierAttributeCounter;
+        this.associatedWith = Stats.associatedWith;
+//        this.allDeclaredClasses = Stats.allDeclaredClasses;
+//        this.associationsByClass = Stats.associationsByClass;
+//        this.specifiersByClass = Stats.specifiersByClass;
+    }
+}
+
 class Stats {
 	static TypeAttributeCounter typeAttributeCounter = new TypeAttributeCounter();
 	static SpecifierAttributeCounter specifierAttributeCounter = new SpecifierAttributeCounter();
@@ -283,6 +302,23 @@ class Stats {
 
 	static Map<String, ArrayList<String>> associationsByClass = new HashMap<>();
 	static Map<String, String> specifiersByClass = new HashMap<>();
+
+    static Stack<StatsMemento> statsStack = new Stack<>();
+
+    static void stackInternalClass() {
+        statsStack.push(new StatsMemento());
+        reset();
+    }
+
+    static void popInternalClass() {
+        StatsMemento memento = statsStack.pop();
+//        typeAttributeCounter = memento.typeAttributeCounter;
+        specifierAttributeCounter = memento.specifierAttributeCounter;
+        associatedWith = memento.associatedWith;
+//        allDeclaredClasses = memento.allDeclaredClasses;
+//        associationsByClass = memento.associationsByClass;
+//        specifiersByClass = memento.specifiersByClass;
+    }
 
 	static void compileClasses(String currentClassName, String specifier) {
 	  	String spec = (specifier == null || specifier.isBlank()) ? "public" : specifier;
@@ -297,13 +333,17 @@ class Stats {
 		specifierAttributeCounter.compile(currentClassName);
 	}
 
-    static void reset() {
+    private static void reset() {
         typeAttributeCounter = new TypeAttributeCounter();
-        specifierAttributeCounter = new SpecifierAttributeCounter();
         associatedWith = new ArrayList<>();
+    }
+
+    static void hardReset() {
+        reset();
         allDeclaredClasses = new ArrayList<>();
         associationsByClass = new HashMap<>();
         specifiersByClass = new HashMap<>();
+        specifierAttributeCounter = new SpecifierAttributeCounter();
     }
 
     static void incrementAttributeCounter(String visibility) {
@@ -422,11 +462,32 @@ class Links {
   static List<ClassLink> classLinks = new ArrayList<>();
   static Set<String> names = new HashSet<>();
   static ClassLink currentClassLink = new ClassLink();
+  static Stack<ClassLink> classLinkStack = new Stack<>();
 
   static void addCurrent() {
+      currentClassLink.name = getClassName();
       classLinks.add(currentClassLink);
       names.add(currentClassLink.name);
       currentClassLink = new ClassLink();
+  }
+
+  private static String getClassName() {
+      StringBuilder sb = new StringBuilder();
+      if (!classLinkStack.isEmpty()) {
+          for (ClassLink classLink : classLinkStack)
+            sb.append(classLink.name).append(".");
+      }
+      sb.append(currentClassLink.name);
+
+      return sb.toString();
+  }
+
+  static void stackInternalClass() {
+      classLinkStack.push(currentClassLink);
+  }
+
+  static void popInternalClass() {
+      currentClassLink = classLinkStack.pop();
   }
 
   static void reset() {
@@ -578,6 +639,17 @@ class Calls {
        builder.setLength(builder.length() - 2);
        return builder.toString();
    }
+}
+
+class InternalClassUtils{
+    static void stack() {
+        Links.stackInternalClass();
+        Stats.stackInternalClass();
+    }
+    static void pop() {
+        Links.popInternalClass();
+        Stats.popInternalClass();
+    }
 }
 
 PARSER_END(JavaParser)
@@ -901,14 +973,15 @@ void CompilationUnit():
 {
 }
 {
-    {Stats.reset(); ClassCalls.reset();}
+    {Stats.hardReset(); ClassCalls.reset();}
     [ LOOKAHEAD(2) PackageDeclaration() ]
     ( ImportDeclaration() )*
     (TypeDeclaration())*
-    {Links.print(); System.out.println(); Stats.output();}
+    {Stats.output();}
     <EOF>
 }
 
+// FIXME: Stats, ClassCalls
 
 void PackageDeclaration():
 {
@@ -1135,7 +1208,11 @@ void ClassOrInterfaceBodyDeclaration():
                   // more checks, pass the modifiers down to the member
       (
           LOOKAHEAD(3)
-          ClassOrInterfaceDeclaration(visibility)
+          (
+            {InternalClassUtils.stack();}
+            ClassOrInterfaceDeclaration(visibility)
+            {InternalClassUtils.pop();}
+          )
         |
           EnumDeclaration()
         |
@@ -1321,18 +1398,25 @@ String Type():
 
 String ReferenceType():
 {
- String referenceName;
+ String referenceName = null;
+ StringBuilder sb = new StringBuilder();
 }
 {
     LOOKAHEAD(3)
-        referenceName=PrimitiveType() ( LOOKAHEAD(2) "[" "]" )+
+    (
+        referenceName=PrimitiveType() ( LOOKAHEAD(2) "[" "]" {sb.append("[]");})+
+        {referenceName = referenceName + sb.toString();}
+        {Links.currentClassLink.add(new Link(Links.currentClassLink.name, referenceName, LinkType.ASSOCIATION));}
+        {return referenceName;}
+    )
     |
     (
         referenceName=ClassOrInterfaceType()
+        ( LOOKAHEAD(2) "[" "]" {sb.append("[]");})*
+        {referenceName = referenceName + sb.toString();}
         {Links.currentClassLink.add(new Link(Links.currentClassLink.name, referenceName, LinkType.ASSOCIATION));}
+        {return referenceName;}
     )
-    ( LOOKAHEAD(2) "[" "]")*
-    {return referenceName;}
 }
 
 String ClassOrInterfaceType():
