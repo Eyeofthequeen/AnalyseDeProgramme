@@ -141,8 +141,8 @@ class OutputUtils {
 class TypeAttributeCounter {
   	private boolean isReferencedAttribute;
   	private Integer nbSimpleAttributes, nbReferencedAttributes;
-  	Map<String, Integer> nbSimpleAttributesByClass;
-	Map<String, Integer> nbReferencedAttributesByClass;
+  	static Map<String, Integer> nbSimpleAttributesByClass;
+	static Map<String, Integer> nbReferencedAttributesByClass;
 
 	TypeAttributeCounter() {
 	  	isReferencedAttribute = false;
@@ -162,6 +162,10 @@ class TypeAttributeCounter {
 	}
 
 	int getTotalForClass(String name) {
+//        System.out.println("GET TOTAL FOR CLASS");
+//        System.out.println(nbSimpleAttributesByClass);
+//        System.out.println(nbReferencedAttributesByClass);
+//        System.out.println(name);
 		return nbSimpleAttributesByClass.get(name) + nbReferencedAttributesByClass.get(name);
 	}
 
@@ -170,6 +174,7 @@ class TypeAttributeCounter {
 	void reset() { nbSimpleAttributes = nbReferencedAttributes = 0; }
 
 	void compile(String currentClassName) {
+        System.out.println("COMPILING TypeAttributeCounter " + currentClassName);
 		nbSimpleAttributesByClass.put(currentClassName, nbSimpleAttributes);
 		nbReferencedAttributesByClass.put(currentClassName, nbReferencedAttributes);
 		reset();
@@ -197,7 +202,7 @@ class TypeAttributeCounter {
 
 class SpecifierAttributeCounter {
 	Integer privates, publics, protecteds;
-	Map<String, Map<Keys, Integer>> nbAttributesBySpecifierByClass = new HashMap<>();
+	static Map<String, Map<Keys, Integer>> nbAttributesBySpecifierByClass = new HashMap<>();
 
 	SpecifierAttributeCounter() {
 		privates = 0;
@@ -283,7 +288,7 @@ class StatsMemento extends Stats {
     Map<String, String> specifiersByClass;
 
     public StatsMemento() {
-//        this.typeAttributeCounter = Stats.typeAttributeCounter;
+        this.typeAttributeCounter = Stats.typeAttributeCounter;
         this.specifierAttributeCounter = Stats.specifierAttributeCounter;
         this.associatedWith = Stats.associatedWith;
 //        this.allDeclaredClasses = Stats.allDeclaredClasses;
@@ -308,11 +313,14 @@ class Stats {
     static void stackInternalClass() {
         statsStack.push(new StatsMemento());
         reset();
+//        System.out.println("STACKING");
+//        System.out.println(typeAttributeCounter.nbSimpleAttributesByClass);
+//        System.out.println(typeAttributeCounter.nbReferencedAttributesByClass);
     }
 
     static void popInternalClass() {
         StatsMemento memento = statsStack.pop();
-//        typeAttributeCounter = memento.typeAttributeCounter;
+        typeAttributeCounter = memento.typeAttributeCounter;
         specifierAttributeCounter = memento.specifierAttributeCounter;
         associatedWith = memento.associatedWith;
 //        allDeclaredClasses = memento.allDeclaredClasses;
@@ -335,6 +343,7 @@ class Stats {
 
     private static void reset() {
         typeAttributeCounter = new TypeAttributeCounter();
+        specifierAttributeCounter = new SpecifierAttributeCounter();
         associatedWith = new ArrayList<>();
     }
 
@@ -343,7 +352,6 @@ class Stats {
         allDeclaredClasses = new ArrayList<>();
         associationsByClass = new HashMap<>();
         specifiersByClass = new HashMap<>();
-        specifierAttributeCounter = new SpecifierAttributeCounter();
     }
 
     static void incrementAttributeCounter(String visibility) {
