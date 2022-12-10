@@ -100,6 +100,7 @@ public class JavaParser
       return;
     }
     try {
+        FileLogger.init();
       if (files != null)
           for (int i = 0; i < files.size(); i++) {
             try {
@@ -115,6 +116,7 @@ public class JavaParser
           parser.CompilationUnit();
 
         Links.print();
+        FileLogger.close();
       System.out.println("Java Parser Version 1.7:  Java program parsed successfully.");
     } catch (ParseException e) {
       System.out.println(e.getMessage());
@@ -123,18 +125,52 @@ public class JavaParser
   }
 }
 
+class FileLogger {
+    static FileWriter fw = null;
 
+    static void init() {
+        try {
+            fw = new FileWriter("output.txt");
+        } catch (Exception e) {
+            System.out.println(e.getMessage());
+        }
+    }
+
+    static void println(String string) {
+        try {
+            fw.write(string + "\n");
+        } catch (Exception e) {
+            System.out.println(e.getMessage());
+        }
+    }
+
+    static void print(String string) {
+        try {
+            fw.write(string);
+        } catch (Exception e) {
+            System.out.println(e.getMessage());
+        }
+    }
+
+    static void close() {
+        try {
+            fw.close();
+        } catch (Exception e) {
+            System.out.println(e.getMessage());
+        }
+    }
+}
 
 
 
 class OutputUtils {
 	static void pourcentage(String message, int total, int attributes) {
-		if (total > 0) { System.out.println(message + String.format("%.2f", (float) attributes/total * 100) + "%"); }
-		else { System.out.println(message + "0%"); }
+		if (total > 0) { FileLogger.println(message + String.format("%.2f", (float) attributes/total * 100) + "%"); }
+		else { FileLogger.println(message + "0%"); }
 	}
 
 	static void lineOutput(Integer repeat) {
-		System.out.println(new String(new char[repeat]).replace("\0", "-"));
+		FileLogger.println(new String(new char[repeat]).replace("\0", "-"));
 	}
 }
 
@@ -180,14 +216,14 @@ class TypeAttributeCounter {
 	  	Integer total = getTotalForClass(name);
 	  	String pourcentLine = "Pourcentage d'attribut";
 
-		System.out.println("\nNombre d'attribut total : " + total);
+		FileLogger.println("\nNombre d'attribut total : " + total);
 		OutputUtils.lineOutput(lineWidth);
 
-		System.out.println("Nombre d'attribut de type simple : " + nbSimpleAttributesByClass.get(name));
+		FileLogger.println("Nombre d'attribut de type simple : " + nbSimpleAttributesByClass.get(name));
 		OutputUtils.pourcentage(pourcentLine + " de type simple : ", total, nbSimpleAttributesByClass.get(name));
 		OutputUtils.lineOutput(lineWidth);
 
-		System.out.println("Nombre d'attribut de référence : " + nbReferencedAttributesByClass.get(name));
+		FileLogger.println("Nombre d'attribut de référence : " + nbReferencedAttributesByClass.get(name));
 		OutputUtils.pourcentage(pourcentLine + " de référence : ", total, nbReferencedAttributesByClass.get(name));
 		OutputUtils.lineOutput(lineWidth);
 	}
@@ -225,15 +261,15 @@ class SpecifierAttributeCounter {
 	  	Integer repeatLong = 15, repeatDefault = 8;
 	  	String pourcentLine = "Pourcentage d'attribut";
 
-		System.out.println("Nombre d'attribut public : " + nbAttributesBySpecifierByClass.get(name).get(Keys.PUBLIC));
+		FileLogger.println("Nombre d'attribut public : " + nbAttributesBySpecifierByClass.get(name).get(Keys.PUBLIC));
 		OutputUtils.pourcentage(pourcentLine + "  public : ", total, nbAttributesBySpecifierByClass.get(name).get(Keys.PUBLIC));
 		OutputUtils.lineOutput(repeatDefault);
 
-		System.out.println("Nombre d'attribut private : " + nbAttributesBySpecifierByClass.get(name).get(Keys.PRIVATE));
+		FileLogger.println("Nombre d'attribut private : " + nbAttributesBySpecifierByClass.get(name).get(Keys.PRIVATE));
 		OutputUtils.pourcentage(pourcentLine + "  private : ", total, nbAttributesBySpecifierByClass.get(name).get(Keys.PRIVATE));
 		OutputUtils.lineOutput(repeatDefault);
 
-		System.out.println("Nombre d'attribut protected : " + nbAttributesBySpecifierByClass.get(name).get(Keys.PROTECTED));
+		FileLogger.println("Nombre d'attribut protected : " + nbAttributesBySpecifierByClass.get(name).get(Keys.PROTECTED));
 		OutputUtils.pourcentage(pourcentLine + "  protected : ", total, nbAttributesBySpecifierByClass.get(name).get(Keys.PROTECTED));
 		OutputUtils.lineOutput(repeatLong);
 	}
@@ -276,7 +312,7 @@ class VisibilityLister {
 	}
 
 	void output() {
-		System.out.println("Visible for : " + permanentVisibilities);
+		FileLogger.println("Visible for : " + permanentVisibilities);
 	}
 }
 
@@ -364,14 +400,14 @@ class Stats {
 			ClassLink associations = Links.get(name).getAssociation();
 			String pourcentLine = "Pourcentage d'attribut";
 
-			System.out.println("\n");
+			FileLogger.println("\n");
 			OutputUtils.lineOutput(repeatLong);
-			System.out.println("Nom de la classe : " + name);
+			FileLogger.println("Nom de la classe : " + name);
 			OutputUtils.lineOutput(repeatDefault);
-			System.out.println("Spécificateur d'accès : " + specifier);
-			System.out.println("Nombre d'associations : " + associations.size());
-			System.out.println("Associations : " + associations.getNames());
-            System.out.println("Couplage : " + ClassCalls.getCalls(name));
+			FileLogger.println("Spécificateur d'accès : " + specifier);
+			FileLogger.println("Nombre d'associations : " + associations.size());
+			FileLogger.println("Associations : " + associations.getNames());
+            FileLogger.println("Couplage : " + ClassCalls.getCalls(name));
 
 			visibilityLister.output();
 
@@ -511,17 +547,17 @@ class Links {
   }
 
   static void print() {
-      System.out.println("\n------Class list------");
+      FileLogger.println("\n------Class list------");
       for(String name: names)
-          System.out.println(name);
+          FileLogger.println(name);
 
-      System.out.println("------Class links------");
+      FileLogger.println("------Class links------");
 
       for(ClassLink classLink: classLinks)
           if (classLink.hasLinks())
-              System.out.println(classLink);
+              FileLogger.println(classLink.toString());
 
-      System.out.println("-----------------------");
+      FileLogger.println("-----------------------");
   }
 
   static ClassLink get(String name) {
@@ -574,12 +610,12 @@ class ClassVariables {
 
     public static void printFunction() {
         for (Variable variable: functionVariables)
-            System.out.print(variable + ", ");
+            FileLogger.print(variable + ", ");
     }
 
     public static void printClass() {
         for (Variable variable: classVariables)
-            System.out.print(variable + ", ");
+            FileLogger.print(variable + ", ");
         }
 }
 
@@ -623,8 +659,8 @@ class ClassCalls {
 
     public static void print() {
         for (Map.Entry<String, Calls> entry : classCalls.entrySet()) {
-            System.out.println(entry.getKey());
-            System.out.println(entry.getValue());
+            FileLogger.println(entry.getKey());
+            FileLogger.println(entry.getValue().toString());
         }
     }
 }
