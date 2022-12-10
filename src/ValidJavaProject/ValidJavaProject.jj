@@ -367,7 +367,7 @@ class Stats {
 			String name = entry.getKey();
 			String specifier = entry.getValue();
 			VisibilityLister visibilityLister = new VisibilityLister(allDeclaredClasses, associationsByClass, name, specifiersByClass.get(name));
-			List<Link> associations = Links.get(name).getAssociation().links;
+			ClassLink associations = Links.get(name).getAssociation();
 			String pourcentLine = "Pourcentage d'attribut";
 
 			System.out.println("\n");
@@ -376,7 +376,7 @@ class Stats {
 			OutputUtils.lineOutput(repeatDefault);
 			System.out.println("Spécificateur d'accès : " + specifier);
 			System.out.println("Nombre d'associations : " + associations.size());
-			System.out.println("Associations : " + associations);
+			System.out.println("Associations : " + associations.getNames());
             System.out.println("Couplage : " + ClassCalls.getCalls(name));
 
 			visibilityLister.output();
@@ -418,7 +418,8 @@ class ClassLink {
   }
 
   public void add(Link link) {
-      links.add(link);
+      if (!contains(link))
+        links.add(link);
   }
 
   public void addAssociation(Token type) {
@@ -437,6 +438,17 @@ class ClassLink {
               classLink.add(link);
       }
       return classLink;
+  }
+
+  boolean contains(Link link) {
+      for (Link l : links)
+          if (l.to.equals(link.to))
+              return true;
+      return false;
+  }
+
+  public int size() {
+      return links.size();
   }
 
   public String getNames() {
@@ -1758,7 +1770,10 @@ void PrimaryExpression():
 //                System.out.println(caller);
 //                System.out.println(ClassVariables.getVariable(caller));
 //                System.out.println("-------------------");
-                ClassCalls.addCall(ClassVariables.getVariable(caller).type);
+                if (caller.substring(0, 1).equals(caller.substring(0, 1).toLowerCase()))
+                    ClassCalls.addCall(ClassVariables.getVariable(caller).type);
+                else
+                    ClassCalls.addCall(caller);
             }
         }
     }

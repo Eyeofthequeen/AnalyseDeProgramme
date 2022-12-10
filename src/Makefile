@@ -30,7 +30,7 @@ $(SOURCES):
 	javac -d $(OUTPUTDIR)/$(basename $(notdir $@)) $(OBJECTSDIR)/$(basename $(notdir $@))/*.java
 	@echo Adding test file to directory...
 	-cp $(SOURCEDIR)/testfile $(OUTPUTDIR)/$(basename $(notdir $@))/testfile
-	-cp -R $(SOURCEDIR)/PetitProjetTest $(OUTPUTDIR)/$(basename $(notdir $@))/testDirectory
+	-cp -R $(SOURCEDIR)/Jeudedonnées $(OUTPUTDIR)/$(basename $(notdir $@))/Jeudedonnées
 
 clean:
 	-@rm -r $(OBJECTSDIR)
