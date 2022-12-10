@@ -367,7 +367,7 @@ class Stats {
 			String name = entry.getKey();
 			String specifier = entry.getValue();
 			VisibilityLister visibilityLister = new VisibilityLister(allDeclaredClasses, associationsByClass, name, specifiersByClass.get(name));
-			ArrayList<String> associations = associationsByClass.get(name);
+			List<Link> associations = Links.get(name).getAssociation().links;
 			String pourcentLine = "Pourcentage d'attribut";
 
 			System.out.println("\n");
@@ -430,10 +430,10 @@ class ClassLink {
       }
   }
 
-  public ClassLink getInheritance() {
+  public ClassLink getAssociation() {
       ClassLink classLink = new ClassLink();
       for (Link link : links) {
-          if (link.type == LinkType.INHERITANCE)
+          if (link.type == LinkType.ASSOCIATION)
               classLink.add(link);
       }
       return classLink;
@@ -1411,20 +1411,20 @@ String ReferenceType():
 }
 {
     LOOKAHEAD(3)
-    (
         referenceName=PrimitiveType() ( LOOKAHEAD(2) "[" "]" {sb.append("[]");})+
-        {referenceName = referenceName + sb.toString();}
-        {Links.currentClassLink.add(new Link(Links.currentClassLink.name, referenceName, LinkType.ASSOCIATION));}
+        {
+            referenceName = referenceName + sb.toString();
+            Links.currentClassLink.add(new Link(Links.currentClassLink.name, referenceName, LinkType.ASSOCIATION));
+        }
         {return referenceName;}
-    )
     |
-    (
         referenceName=ClassOrInterfaceType()
         ( LOOKAHEAD(2) "[" "]" {sb.append("[]");})*
-        {referenceName = referenceName + sb.toString();}
-        {Links.currentClassLink.add(new Link(Links.currentClassLink.name, referenceName, LinkType.ASSOCIATION));}
+        {
+            referenceName = referenceName + sb.toString();
+            Links.currentClassLink.add(new Link(Links.currentClassLink.name, referenceName, LinkType.ASSOCIATION));
+        }
         {return referenceName;}
-    )
 }
 
 String ClassOrInterfaceType():
@@ -1498,13 +1498,17 @@ String PrimitiveType():
     {return type.image;}
 }
 
-void ResultType():
+String ResultType():
 {
+ Token t;
+ String type;
 }
 {
-      "void"
+      t="void"
+      {return t.image;}
     |
-      Type()
+      type=Type()
+      {return type;}
 }
 
 String Name():
