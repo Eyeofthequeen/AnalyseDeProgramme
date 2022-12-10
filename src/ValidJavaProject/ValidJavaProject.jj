@@ -141,15 +141,13 @@ class OutputUtils {
 class TypeAttributeCounter {
   	private boolean isReferencedAttribute;
   	private Integer nbSimpleAttributes, nbReferencedAttributes;
-  	static Map<String, Integer> nbSimpleAttributesByClass;
-	static Map<String, Integer> nbReferencedAttributesByClass;
+  	static Map<String, Integer> nbSimpleAttributesByClass = new HashMap<>();
+	static Map<String, Integer> nbReferencedAttributesByClass = new HashMap<>();
 
 	TypeAttributeCounter() {
 	  	isReferencedAttribute = false;
 		nbSimpleAttributes =  0;
 		nbReferencedAttributes = 0;
-		nbSimpleAttributesByClass = new HashMap<>();
-		nbReferencedAttributesByClass = new HashMap<>();
 	}
 
 	void incrementSimpleAttributes() {
@@ -162,10 +160,6 @@ class TypeAttributeCounter {
 	}
 
 	int getTotalForClass(String name) {
-//        System.out.println("GET TOTAL FOR CLASS");
-//        System.out.println(nbSimpleAttributesByClass);
-//        System.out.println(nbReferencedAttributesByClass);
-//        System.out.println(name);
 		return nbSimpleAttributesByClass.get(name) + nbReferencedAttributesByClass.get(name);
 	}
 
@@ -174,7 +168,6 @@ class TypeAttributeCounter {
 	void reset() { nbSimpleAttributes = nbReferencedAttributes = 0; }
 
 	void compile(String currentClassName) {
-        System.out.println("COMPILING TypeAttributeCounter " + currentClassName);
 		nbSimpleAttributesByClass.put(currentClassName, nbSimpleAttributes);
 		nbReferencedAttributesByClass.put(currentClassName, nbReferencedAttributes);
 		reset();
@@ -252,6 +245,14 @@ class VisibilityLister {
   	private ArrayList<String> permanentVisibilities;
 
 	VisibilityLister(ArrayList<String> allDeclarations, Map<String, ArrayList<String>> associationsByClass, String name, String specifier) {
+//        System.out.println("-------------------------");
+//        System.out.println("VisibilityLister");
+//        System.out.println(allDeclarations);
+//        System.out.println(associationsByClass);
+//        System.out.println(name);
+//        System.out.println(specifier);
+//        System.out.println("-------------------------");
+
 		this.allDeclarations = allDeclarations;
 		this.associationsByClass = associationsByClass;
 		permanentVisibilities = new ArrayList<>();
@@ -341,17 +342,10 @@ class Stats {
 		specifierAttributeCounter.compile(currentClassName);
 	}
 
-    private static void reset() {
+    static void reset() {
         typeAttributeCounter = new TypeAttributeCounter();
         specifierAttributeCounter = new SpecifierAttributeCounter();
         associatedWith = new ArrayList<>();
-    }
-
-    static void hardReset() {
-        reset();
-        allDeclaredClasses = new ArrayList<>();
-        associationsByClass = new HashMap<>();
-        specifiersByClass = new HashMap<>();
     }
 
     static void incrementAttributeCounter(String visibility) {
@@ -993,7 +987,7 @@ void CompilationUnit():
 {
 }
 {
-    {Stats.hardReset(); ClassCalls.reset();}
+    {Stats.reset(); ClassCalls.reset();}
     [ LOOKAHEAD(2) PackageDeclaration() ]
     ( ImportDeclaration() )*
     (TypeDeclaration())*
