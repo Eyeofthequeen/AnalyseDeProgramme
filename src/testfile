@@ -1,0 +1,49 @@
+interface I {
+    public void test();
+}
+
+interface J {
+    public void guh();
+}
+
+public class MyString extends String {
+    private StringBuilder builder = new StringBuilder();
+}
+
+public abstract class Test {
+    private int w = 10;
+    public int x = 0;
+    protected int y;
+    public int z;
+}
+
+class T implements I {
+    private float bruh;
+    public void test() {
+        public int i = -1;
+		public float j = 1.0;
+		for(; i < 0; i++) {
+			j += 3.2;
+		}
+    }
+    protected int i;
+}
+
+public class Other extends Test implements I, J {
+    private Test test;
+    public void test() {
+        test.test();
+    }
+    public void guh() {}
+}
+
+public class Qwerty {
+    private Other other;
+    private I variable;
+
+    public J function(T test, I test2) {
+        test2.x();
+        test.qwerty();
+        return new Other();
+    }
+}

@@ -1,0 +1,603 @@
+options
+{
+  STATIC = false;
+  DEBUG_PARSER = false;
+}
+
+PARSER_BEGIN(Merge)
+import java.util.*;
+import java.io.*;
+
+enum Keys { PRIVATE, PROTECTED, PUBLIC }
+
+public class Merge {
+    public static void main(String[] args) {
+        try {
+            // TODO: read all files and append them one after the other (might work, might not work)
+          	InputStream inputStream = new FileInputStream(new File(args[0]));
+         	new Merge(inputStream).Input();
+            System.out.println("Syntax is okay");
+        } catch (Throwable e) {
+            System.out.println("Syntax check failed: " + e.getMessage());
+        }
+    }
+}
+
+//----Option 1-2----
+
+class OutputUtils {
+	static void pourcentage(String message, int total, int attributes) {
+		if (total > 0) { System.out.println(message + String.format("%.2f", (float) attributes/total * 100) + "%"); }
+		else { System.out.println(message + "0%"); }
+	}
+
+	static void lineOutput(Integer repeat) {
+		System.out.println(new String(new char[repeat]).replace("\0", "-"));
+	}
+}
+
+class TypeAttributeCounter {
+  	private boolean isReferencedAttribute;
+  	private Integer nbSimpleAttributes, nbReferencedAttributes;
+  	Map<String, Integer> nbSimpleAttributesByClass = new HashMap<String, Integer>();
+	Map<String, Integer> nbReferencedAttributesByClass = new HashMap<String, Integer>();
+
+	TypeAttributeCounter() {
+	  	isReferencedAttribute = false;
+		nbSimpleAttributes =  0;
+		nbReferencedAttributes = 0;
+		nbSimpleAttributesByClass = new HashMap<String, Integer>();
+		nbReferencedAttributesByClass = new HashMap<String, Integer>();
+	}
+
+	void incrementSimpleAttributes() {
+		++nbSimpleAttributes;
+	}
+
+	void incrementReferencedAttributes() {
+		++nbReferencedAttributes;
+		isReferencedAttribute = true;
+	}
+
+	int getTotalForClass(String name) {
+		return nbSimpleAttributesByClass.get(name) + nbReferencedAttributesByClass.get(name);
+	}
+
+	boolean getIsReferencedAttribute() { return isReferencedAttribute; }
+
+	void reset() { nbSimpleAttributes = nbReferencedAttributes = 0; }
+
+	void compile(String currentClassName) {
+		nbSimpleAttributesByClass.put(currentClassName, nbSimpleAttributes);
+		nbReferencedAttributesByClass.put(currentClassName, nbReferencedAttributes);
+		reset();
+	}
+
+	void resetIsReferenced() { isReferencedAttribute = false; }
+
+	void output(String name) {
+	  	Integer lineWidth = 15;
+	  	Integer total = getTotalForClass(name);
+	  	String pourcentLine = "Pourcentage d'attribut";
+
+		System.out.println("\nNombre d'attribut total : " + total);
+		OutputUtils.lineOutput(lineWidth);
+
+		System.out.println("Nombre d'attribut de type simple : " + nbSimpleAttributesByClass.get(name));
+		OutputUtils.pourcentage(pourcentLine + " de type simple : ", total, nbSimpleAttributesByClass.get(name));
+		OutputUtils.lineOutput(lineWidth);
+
+		System.out.println("Nombre d'attribut de référence : " + nbReferencedAttributesByClass.get(name));
+		OutputUtils.pourcentage(pourcentLine + " de référence : ", total, nbReferencedAttributesByClass.get(name));
+		OutputUtils.lineOutput(lineWidth);
+	}
+}
+
+class SpecifierAttributeCounter {
+	Integer privates, publics, protecteds;
+	Map<String, Map<Keys, Integer>> nbAttributesBySpecifierByClass = new HashMap<String, Map<Keys, Integer>>();
+
+	SpecifierAttributeCounter() {
+		privates = 0;
+		publics = 0;
+		protecteds = 0;
+	}
+
+	void increment(Keys key) {
+		switch (key) {
+			case PRIVATE: ++privates; break;
+			case PUBLIC: ++publics; break;
+			case PROTECTED: ++protecteds; break;
+		}
+	}
+
+	void reset() { privates = publics = protecteds = 0; }
+
+	void compile(String name) {
+	  	nbAttributesBySpecifierByClass.put(name, new HashMap<Keys, Integer>());
+		nbAttributesBySpecifierByClass.get(name).put(Keys.PUBLIC, publics);
+		nbAttributesBySpecifierByClass.get(name).put(Keys.PROTECTED, protecteds);
+		nbAttributesBySpecifierByClass.get(name).put(Keys.PRIVATE, privates);
+		reset();
+	}
+
+	void output(String name, Integer total) {
+	  	Integer repeatLong = 15, repeatDefault = 8;
+	  	String pourcentLine = "Pourcentage d'attribut";
+
+		System.out.println("Nombre d'attribut public : " + nbAttributesBySpecifierByClass.get(name).get(Keys.PUBLIC));
+		OutputUtils.pourcentage(pourcentLine + "  public : ", total, nbAttributesBySpecifierByClass.get(name).get(Keys.PUBLIC));
+		OutputUtils.lineOutput(repeatDefault);
+
+		System.out.println("Nombre d'attribut private : " + nbAttributesBySpecifierByClass.get(name).get(Keys.PRIVATE));
+		OutputUtils.pourcentage(pourcentLine + "  private : ", total, nbAttributesBySpecifierByClass.get(name).get(Keys.PRIVATE));
+		OutputUtils.lineOutput(repeatDefault);
+
+		System.out.println("Nombre d'attribut protected : " + nbAttributesBySpecifierByClass.get(name).get(Keys.PROTECTED));
+		OutputUtils.pourcentage(pourcentLine + "  protected : ", total, nbAttributesBySpecifierByClass.get(name).get(Keys.PROTECTED));
+		OutputUtils.lineOutput(repeatLong);
+	}
+}
+
+class VisibilityLister {
+  	ArrayList<String> allDeclarations;
+  	Map<String, ArrayList<String>> associationsByClass;
+  	private ArrayList<String> permanentVisibilities;
+
+	VisibilityLister(ArrayList<String> allDeclarations, Map<String, ArrayList<String>> associationsByClass, String name, String specifier) {
+		this.allDeclarations = allDeclarations;
+		this.associationsByClass = associationsByClass;
+		permanentVisibilities = new ArrayList<String>();
+		compile(name, specifier);
+	}
+
+
+	private void compile(String name, String specifier) {
+		for (Map.Entry<String, ArrayList<String>> entry : associationsByClass.entrySet()) {
+			String entryClassKey = entry.getKey();
+			ArrayList<String> entryAssociations = entry.getValue();
+
+			if (entryClassKey.equals(name)) { continue; }
+
+			for (String association : entryAssociations) {
+				if (association.equals(name)) {
+				  	 permanentVisibilities.add(entryClassKey);
+				}
+			}
+		}
+	}
+
+	void output() {
+		System.out.println("Visible for : " + permanentVisibilities);
+	}
+}
+
+class Stats {
+	static TypeAttributeCounter typeAttributeCounter = new TypeAttributeCounter();
+	static SpecifierAttributeCounter specifierAttributeCounter = new SpecifierAttributeCounter();
+
+	static ArrayList<String> associatedWith = new ArrayList<String>();
+
+	static ArrayList<String> allDeclaredClasses = new ArrayList<String>();
+
+	static Map<String, ArrayList<String>> associationsByClass = new HashMap<String, ArrayList<String>>();
+	static Map<String, String> specifiersByClass = new HashMap<String, String>();
+
+    static ClassLink currentClassLink = new ClassLink();
+
+	static void compileClasses(String currentClassName, Token specifier) {
+	  	String spec = (specifier == null) ? "public" : specifier.image;
+	  	allDeclaredClasses.add(currentClassName);
+
+		associationsByClass.put(currentClassName, associatedWith);
+		associatedWith = new ArrayList<String>();
+
+		specifiersByClass.put(currentClassName, spec);
+
+		typeAttributeCounter.compile(currentClassName);
+		specifierAttributeCounter.compile(currentClassName);
+
+        Links.classLinks.add(currentClassLink);
+        currentClassLink = new ClassLink();
+	}
+
+	static void output() {
+	  	Integer repeatLong = 15, repeatDefault = 8;
+
+		for (Map.Entry<String, String> entry : specifiersByClass.entrySet()) {
+			String name = entry.getKey();
+			String specifier = entry.getValue();
+			VisibilityLister visibilityLister = new VisibilityLister(allDeclaredClasses, associationsByClass, name, specifiersByClass.get(name));
+			ArrayList<String> associations = associationsByClass.get(name);
+			String pourcentLine = "Pourcentage d'attribut";
+
+			System.out.println("\n");
+			OutputUtils.lineOutput(repeatLong);
+			System.out.println("Nom de la classe : " + name);
+			OutputUtils.lineOutput(repeatDefault);
+			System.out.println("Spécificateur d'accès : " + specifier);
+			System.out.println("Nombre d'associations : " + associations.size());
+			System.out.println("Associations : " + associations);
+
+            System.out.println("Héritage: " + Links.get(name).getInheritance().getNames());
+
+			visibilityLister.output();
+
+			typeAttributeCounter.output(name);
+			specifierAttributeCounter.output(name, typeAttributeCounter.getTotalForClass(name));
+		}
+	}
+}
+
+//----Option 3-4----
+
+class Link {
+    public String from;
+    public String to;
+    public LinkType type;
+
+    public Link() {}
+    public Link(String from, String to, LinkType type) {
+        this.from = from;
+        this.to = to;
+        this.type = type;
+    }
+
+    public String toString() {
+        return from + ((type == LinkType.INHERITANCE) ? "---|>" : "-----") + to;
+    }
+}
+
+class ClassLink {
+    String name = "";
+    List<Link> links = new ArrayList<>();
+
+    public void add(Link link) {
+        links.add(link);
+    }
+
+    public void addAssociation(Token type) {
+        if (type != null) {
+            // check if the first letter is a capital letter
+            if (name.charAt(0) != name.toLowerCase().charAt(0)) {
+                add(new Link(name, type.image, LinkType.ASSOCIATION));
+            }
+        }
+    }
+
+    public ClassLink getInheritance() {
+        ClassLink classLink = new ClassLink();
+        for (Link link : links) {
+            if (link.type == LinkType.INHERITANCE)
+                classLink.add(link);
+        }
+        return classLink;
+    }
+
+    public String getNames() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("[");
+        if (links.size() > 0) {
+            for (Link link : links)
+                sb.append(link.to).append(", ");
+
+            // remove last comma
+            sb.delete(sb.length() - 2, sb.length());
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        if (links.size() > 0) {
+            for (Link link : links)
+                sb.append(link).append(", ");
+
+            // remove last comma
+            sb.delete(sb.length() - 2, sb.length());
+        }
+        return sb.toString();
+    }
+}
+
+class Links {
+    static List<ClassLink> classLinks = new ArrayList<>();
+    static Set<String> names = new HashSet<>();
+
+    static void print() {
+        for(String name: names)
+            System.out.println("class " + name);
+
+        for(ClassLink classLink: classLinks)
+            System.out.println(classLink);
+    }
+
+    static ClassLink get(String name) {
+        for (ClassLink link : classLinks)
+            if (link.name.equalsIgnoreCase(name))
+                return link;
+
+        return null;
+    }
+}
+
+enum LinkType {
+    INHERITANCE,
+    ASSOCIATION
+}
+
+class Variable {
+     public String type;
+     public String name;
+
+     public Variable(String type, String name) {
+         this.type = type;
+         this.name = name;
+     }
+
+     public Variable(Token type, Token name) {
+         this.type = type.image;
+         this.name = name.image;
+     }
+
+     public String toString() {
+         return type + " " + name;
+     }
+ }
+
+ class Calls {
+     private HashMap<String, Integer> calls = new HashMap<>();
+
+     public void add(String className) {
+         if (!calls.containsKey(className)) {
+             calls.put(className, 0);
+         }
+         calls.replace(className, calls.get(className) + 1);
+     }
+
+     public String toString() {
+         StringBuilder builder = new StringBuilder();
+         for (Map.Entry<String, Integer> entry : calls.entrySet()) {
+             builder.append(entry.getKey());
+             builder.append(" -> ");
+             builder.append(entry.getValue());
+             builder.append("\n");
+         }
+         return builder.toString();
+     }
+ }
+PARSER_END(Merge)
+
+SKIP:  { " " | "\t" | "\n" | "\r" }
+TOKEN:
+{
+  <PRIVATE: "private">
+  | <PROTECTED: "protected">
+  | <PUBLIC: "public">
+  | <STATIC: "static">
+  | <CLASS: "class">
+  | <ABSTRACT: "abstract">
+  | <INTERFACE: "interface">
+  | <EXTENDS: "extends">
+  | <IMPLEMENTS: "implements">
+}
+
+TOKEN :
+{
+	  < IF : "if" >
+	| < ELSE : "else" >
+	| < WHILE : "while" >
+	| <BOOLEAN: "true" | "false">
+	| < RETURN : "return" >
+	| < NEW : "new" >
+}
+
+TOKEN :
+{
+  < INT : "int" >
+| < DOUBLE : "double" >
+| < BOOL : "bool" >
+| < VOID : "void" >
+| < FLOAT: "float">
+}
+
+TOKEN:
+{
+  <LBRACE: "{"> | <RBRACE: "}">
+  | <LPARENTHESIS: "("> | <RPARENTHESIS: ")">
+  | <DOT: ".">
+  | <COMMA: ",">
+  | <SEMICOLON: ";">
+  | <UPPERCAMEL: (["A"-"Z"])+(["a"-"z","A"-"Z", "0"-"9", "_"])*>
+  | <LOWERCAMEL: (["a"-"z"])+(["a"-"z","A"-"Z", "0"-"9", "_"])*>
+  | <STRING: "\"" (<UPPERCAMEL> | <LOWERCAMEL>)? "\"">
+}
+
+TOKEN : /* OPERATEURS */
+{
+	< PLUS : "+" >
+	| < MINUS : "-" >
+	| < MULTIPLY : "*" >
+	| < DIVIDE : "/" >
+	| < MODULO : "%" >
+	| < ASSIGN : "=" >
+	| < EQUAL : "==" >
+	| < NOT_EQUAL : "<>" >
+	| < GREATER : ">" >
+	| < GREATER_OR_EQUAL : ">=" >
+	| < LOWER : "<" >
+	| < LOWER_OR_EQUAL : "<=" >
+	| < AND : "&&" >
+	| < OR : "||" >
+	| < NOT : "!" >
+	| < PREFIX_INCREMENT : "++" >
+	| < PREFIX_DECREMENT : "--" >
+}
+
+TOKEN:
+{
+  <NUMBER: <INTEGER> | <REEL>>
+  | <INTEGER: ("-")? (["0"-"9"])+>
+  | <REEL: ("-")? <INTEGER> (<DOT> <INTEGER>)?>
+}
+
+
+void Input() : {} { MatchedClass() <EOF> { Stats.output(); }}
+
+void MatchedClass() : { Token name, specifier;}
+{
+    (specifier = AccessSpecifier())
+    (([<ABSTRACT>] <CLASS>) | <INTERFACE>)
+    (name = <UPPERCAMEL>)
+    {
+        Stats.currentClassLink.name = name.image;
+        Links.names.add(Stats.currentClassLink.name);
+    }
+    [Extension()]
+    [Implementation()]
+    [MatchedBraces(name.image, specifier)]
+    [MatchedClass()]
+}
+
+void Extension() : {Token to;}
+{
+    <EXTENDS> to=<UPPERCAMEL>
+    {
+        Stats.currentClassLink.add(new Link(Stats.currentClassLink.name, to.image, LinkType.INHERITANCE));
+    }
+}
+
+void Implementation() : {Token token;}
+{
+    <IMPLEMENTS> token=<UPPERCAMEL> (MultipleImplementations())*
+    {
+        Stats.currentClassLink.add(new Link(Stats.currentClassLink.name, token.image, LinkType.INHERITANCE));
+    }
+}
+
+void MultipleImplementations() : {Token token;}
+{
+    <COMMA> token=<UPPERCAMEL>
+    {
+        Stats.currentClassLink.add(new Link(Stats.currentClassLink.name, token.image, LinkType.INHERITANCE));
+    }
+}
+
+void MatchedBraces(String name, Token specifier) : {}
+{
+	<LBRACE> MatchedAttributsOrMethod() <RBRACE>
+
+	{ Stats.compileClasses(name, specifier); }
+}
+
+void MatchedAttributsOrMethod() : { Token token; } { (token=Prefixer() (MatchedAttribut(token)| Method())+)* }
+
+void MatchedAttribut(Token token) : {}
+{
+  Attribut(true)
+  {
+	if (token == null || token.image == "public") { Stats.specifierAttributeCounter.increment(Keys.PUBLIC); }
+	else if (token.image == "private") { Stats.specifierAttributeCounter.increment(Keys.PRIVATE); }
+	else if (token.image == "protected") { Stats.specifierAttributeCounter.increment(Keys.PROTECTED); }
+	else { throw new ParseException("Spécificateur d'accès invalide."); }
+  }
+}
+
+Token AccessSpecifier(): {Token token = null;} { (token = <PUBLIC> | token = <PRIVATE> | token = <PROTECTED> | token = <STATIC>)* { return token; }}
+Token Prefixer(): { Token specifier = null; Token type;} { specifier = AccessSpecifier() Type() <LOWERCAMEL> { return specifier; }}
+
+void Params(): {} { <LPARENTHESIS> [Param() ("," Param())*] <RPARENTHESIS> }
+void DeclarationParams() : {} { <LPARENTHESIS> [Type() <LOWERCAMEL> ("," Type() <LOWERCAMEL>)*] <RPARENTHESIS> }
+void Param(): { } { Value(false) }
+
+void Type(): { Token token = null; }
+{
+  <INT> | <DOUBLE> | <VOID> | <BOOL> | <FLOAT> | token = <UPPERCAMEL>
+  {
+  	if (token != null) {
+		Stats.associatedWith.add(token.image);
+		Stats.typeAttributeCounter.incrementReferencedAttributes();
+        Stats.currentClassLink.addAssociation(token);
+  	}
+  }
+}
+
+void Attribut(boolean isClassAttribute): {} { <ASSIGN> Expression_arithmetique(isClassAttribute) <SEMICOLON> }
+void Value(boolean isClassAttribute): { boolean isSimpleValue = false; }
+{
+  ( NewObject() | <STRING> | isSimpleValue = IsBoolean() | isSimpleValue = IsNum() | isSimpleValue = IsFunctionCall() )
+  {
+    if((isSimpleValue) && isClassAttribute && !Stats.typeAttributeCounter.getIsReferencedAttribute()) {
+      Stats.typeAttributeCounter.incrementSimpleAttributes();
+  	}
+  	Stats.typeAttributeCounter.resetIsReferenced();
+  }
+}
+boolean IsNum(): { } { Number() { return true; }}
+boolean IsBoolean(): { } { <BOOLEAN> { return true; }}
+boolean IsFunctionCall(): {} { <LOWERCAMEL> { return true; }}
+
+void Expression_arithmetique(boolean isClassAttribute): { } {Terme(isClassAttribute) ((<PLUS> | <MINUS>) Terme(false))*}
+void Terme(boolean isClassAttribute) : { } { Facteur(isClassAttribute) ((<MULTIPLY> | <DIVIDE> | <MODULO> ) Facteur(false))* }
+void Facteur(boolean isClassAttribute): { } { Value(isClassAttribute) | <LPARENTHESIS> Expression_arithmetique(false) <RPARENTHESIS>}
+
+void NewObject(): { Token name; } { <NEW> name = <UPPERCAMEL> Params() }
+
+void Number(): {}
+{
+  <NUMBER>
+  {
+     Token nextToken = getToken(1);
+     if (nextToken.image.equals(".")) {
+		throw new ParseException("A number can only have one [.]. Expected value : " + getToken(0).image);
+     }
+  }
+}
+
+void Method(): {} { DeclarationParams() <LBRACE> MethodBody() <RBRACE>}
+void MethodBody() : {}
+{
+    (Type() <LOWERCAMEL> Attribut(false))*
+  	( statement() )*
+	( ReturnStatement() )?
+}
+
+void statement() : {}
+{
+	<LOWERCAMEL> Attribut(false)
+    | conditional_statement()
+    | while_loop()
+}
+
+void ReturnStatement(): {} { < RETURN > logical_expression() <SEMICOLON> }
+
+void logical_expression(): {} { comparison_expression() ( logical_connector() comparison_expression() )* }
+
+void comparison_expression(): {} { arithmetic_expression_priority_low() ( comparison_operator() arithmetic_expression_priority_low() )* }
+
+void arithmetic_expression_priority_low(): {} { arithmetic_expression() ( arithmetic_operation_piority_low() arithmetic_expression() )*}
+
+void arithmetic_expression(): {} { unary_expression() ( arithmetic_operation() unary_expression() )* }
+
+void unary_expression(): {} { ( unary_operator() )? term() }
+
+void unary_operator(): {} { < PREFIX_INCREMENT > | < PREFIX_DECREMENT > | < NOT > }
+
+void term(): {} { Value(false) | <LPARENTHESIS> logical_expression() <RPARENTHESIS> }
+
+void logical_connector(): {} { < AND > | < OR > }
+
+void arithmetic_operation(): {} { < MULTIPLY > | < DIVIDE > | < MODULO > }
+
+void arithmetic_operation_piority_low(): {} { < PLUS > | < MINUS > }
+
+void comparison_operator(): {} { < EQUAL > | < NOT_EQUAL > | < GREATER > | < GREATER_OR_EQUAL > | < LOWER > | < LOWER_OR_EQUAL > }
+
+void conditional_statement(): {}
+{
+	< IF > "(" logical_expression()	")" "{" ( statement() )*
+	( LOOKAHEAD(2) "}" < ELSE > "{" ( statement() )* )? "}"
+}
+
+void while_loop(): {} { < WHILE > "(" logical_expression() ")" "{" (statement())* "}" }

@@ -1,0 +1,366 @@
+ /**
+  * JavaCC template file created by SF JavaCC plugin 1.5.28+ wizard for JavaCC 1.5.0+
+  */
+ options
+ {
+   STATIC = false;
+   DEBUG_PARSER = false;
+ }
+
+ PARSER_BEGIN(Option4)
+
+ import java.nio.file.*;
+ import java.util.*;
+
+ public class Option4 {
+     public static void main(String[] args) {
+         try {
+             String file = Files.readString(Paths.get(args[0]));
+             new Option4(new java.io.StringReader(file)).Input();
+         } catch (Throwable e) {
+             System.out.println("Syntax check failed: " + e.getMessage());
+         }
+     }
+ }
+
+ class Variable {
+     public String type;
+     public String name;
+
+     public Variable(String type, String name) {
+         this.type = type;
+         this.name = name;
+     }
+
+     public Variable(Token type, Token name) {
+         this.type = type.image;
+         this.name = name.image;
+     }
+
+     public String toString() {
+         return type + " " + name;
+     }
+ }
+
+ class Calls {
+     private HashMap<String, Integer> calls = new HashMap<>();
+
+     public void add(String className) {
+         if (!calls.containsKey(className)) {
+             calls.put(className, 0);
+         }
+         calls.replace(className, calls.get(className) + 1);
+     }
+
+     public String toString() {
+         StringBuilder builder = new StringBuilder();
+         for (Map.Entry<String, Integer> entry : calls.entrySet()) {
+             builder.append(entry.getKey());
+             builder.append(" -> ");
+             builder.append(entry.getValue());
+             builder.append("\n");
+         }
+         return builder.toString();
+     }
+ }
+
+ PARSER_END(Option4)
+
+ SKIP :
+ {
+   " "
+ | "\r"
+ | "\t"
+ | "\n"
+ }
+
+ MORE :
+ {
+ 	"//" : IN_SINGLE_LINE_COMMENT
+ }
+
+ <IN_SINGLE_LINE_COMMENT>
+ SPECIAL_TOKEN :
+ {
+   <SINGLE_LINE_COMMENT: "\n" | "\r" | "\r\n" > : DEFAULT
+ }
+
+ <IN_SINGLE_LINE_COMMENT>
+ MORE :
+ {
+   < ~[] >
+ }
+
+ SPECIAL_TOKEN : {
+     <EOL: "\n" | "\r">
+ }
+
+ TOKEN: { <LBRACE: "{"> | <RBRACE: "}"> | <PRIVATE: "private"> | <PROTECTED: "protected"> | <PUBLIC: "public"> | <STATIC: "static"> | <ABSTRACT: "abstract"> | <CLASS: "class"> | <INTERFACE: "interface">
+         | <EXTENDS: "extends"> | <IMPLEMENTS: "implements"> | <COMMA: ","> | <L_PARENTHESIS: "("> | <R_PARENTHESIS: ")"> | <SEMI_COLON: ";"> | <DOT : ".">}
+
+ TOKEN : /* OPERATEURS */
+ {
+   < PLUS : "+" >
+ | < MINUS : "-" >
+ | < MULTIPLY : "*" >
+ | < DIVIDE : "/" >
+ | < MODULO : "%" >
+ | < ASSIGN : "=" >
+ | < EQUAL : "==" >
+ | < NOT_EQUAL : "<>" >
+ | < GREATER : ">" >
+ | < GREATER_OR_EQUAL : ">=" >
+ | < LOWER : "<" >
+ | < LOWER_OR_EQUAL : "<=" >
+ | < AND : "&&" >
+ | < OR : "||" >
+ | < NOT : "!" >
+ | < PREFIX_INCREMENT : "++" >
+ | < PREFIX_DECREMENT : "--" >
+ }
+
+ TOKEN : /* MOTS CL﷿S */
+ {
+   < IF : "if" >
+ | < ELSE : "else" >
+ | < WHILE : "while" >
+ | < TRUE: "TRUE" >
+ | < FALSE : "FALSE" >
+ | < RETURN : "return" >
+ | < NEW : "new" >
+ }
+
+ TOKEN : /* TYPES */
+ {
+ < VOID : "void" >
+ }
+
+ TOKEN :	/* LITTERAUX */
+ {
+   < #DIGIT: ["0"-"9"] >
+ | < #LETTER : ["A"-"Z", "a" - "z"] >
+ | < INTEGER : ("-")? ( < DIGIT > )+ >
+ | < DECIMAL :
+ 		("-")? (< DIGIT >)+ "." (< DIGIT >)*
+ 	|  	("-")? (< DIGIT >)* "." (< DIGIT >)+
+ 	>
+ | < IDENTIFIER : < LETTER > (< LETTER > | < DIGIT >)* >
+ }
+
+ void Input() : {}
+ {
+     [Class()]
+ }
+
+ void Class() : {String name; List<Variable> variables = new ArrayList<>(); Calls calls = new Calls();}
+ {
+     [Visibility()]
+     (([<ABSTRACT>] <CLASS>) | <INTERFACE>)
+     name=ClassName()
+     [Extension()]
+     [Implementation()]
+     MatchedBraces(variables, calls)
+     {
+         System.out.println("---------");
+         System.out.println(name);
+         for(Variable var : variables)
+             System.out.println(var);
+         System.out.println(calls);
+     }
+     [Class()]
+ }
+
+ String ClassName() : {Token token;}
+ {
+     token = <IDENTIFIER>
+     {return token.image;}
+ }
+
+ void MatchedBraces(List<Variable> variables, Calls calls) : {}
+ {
+    <LBRACE> (LOOKAHEAD([Visibility()] ( <IDENTIFIER> | < VOID > ) < IDENTIFIER > "(") function(variables, calls) | Attribute(variables, calls) )* <RBRACE>
+ }
+
+ void Visibility() : {}
+ {
+     <PRIVATE> | <PROTECTED> | <PUBLIC>
+ }
+
+ void Extension() : {}
+ {
+     <EXTENDS> <IDENTIFIER>
+ }
+
+ void Implementation() : {}
+ {
+     <IMPLEMENTS> <IDENTIFIER> (MultipleImplementations())*
+ }
+
+ void MultipleImplementations() : {Token token;}
+ {
+     <COMMA> token=<IDENTIFIER>
+ }
+
+ void Attribute(List<Variable> variables, Calls calls) : {Token type; Token name;}
+ {
+     [Visibility()] type=<IDENTIFIER> name=<IDENTIFIER> [<ASSIGN> ( (<NEW> <IDENTIFIER> "(" (parameter_declaration() ("," parameter_declaration())*)? ")") | logical_expression(variables, calls)) ] <SEMI_COLON>
+     {
+         variables.add(new Variable(type, name));
+     }
+ }
+
+ // -----------
+
+ void function(List<Variable> variables, Calls calls) : {}
+ {
+     [Visibility()]
+ 	( type() | < VOID > )
+ 	< IDENTIFIER > "(" (parameter_declaration() ("," parameter_declaration())*)? ")"
+ 	(("{" function_body(variables, calls) "}") | ";")
+ }
+
+ void parameter_declaration() : {}
+ {
+ 	type() < IDENTIFIER >
+ }
+
+ // FIXME: Bug where JavaCC mixes variable_declaration() and statement() when calling function alone
+ //  (ex: calling builder.toString() without assigning it or returning it)
+ void function_body(List<Variable> variables, Calls calls) : {}
+ {
+     ( variable_declaration(variables, calls) ";" )*
+   	( statement(variables, calls) )*
+ 	( return_statement(variables, calls) )?
+ }
+
+ void statement(List<Variable> variables, Calls calls) : {}
+ {
+ 	( LOOKAHEAD(2)
+         assignment(variables, calls) | function_call(variables, calls) ) ";"
+     | conditional_statement(variables, calls)
+     | while_loop(variables, calls)
+ }
+
+ void variable_declaration(List<Variable> variables, Calls calls) : {String type; String name;}
+ {
+ 	type=type() name=assignment(variables, calls) ("," assignment(variables, calls) )*
+ 	{variables.add(new Variable(type, name));}
+ }
+
+ void litteral_value() : {}
+ {
+ 	< INTEGER >
+     | < DECIMAL >
+     | boolean_value()
+ }
+
+ void boolean_value() : {}
+ {
+ 	< TRUE > | < FALSE >
+ }
+
+ String type() : {Token type;}
+ {
+     type=<IDENTIFIER>
+     {return type.image;}
+ }
+
+ void conditional_statement(List<Variable> variables, Calls calls) : {}
+ {
+ 	< IF > "(" logical_expression(variables, calls)	")" "{" ( statement(variables, calls) )*
+ 	( LOOKAHEAD(2) "}" < ELSE > "{" ( statement(variables, calls) )* )? "}"
+ }
+
+ void logical_expression(List<Variable> variables, Calls calls) : {}
+ {
+  	comparison_expression(variables, calls) ( logical_connector() comparison_expression(variables, calls) )*
+ }
+
+ void comparison_expression(List<Variable> variables, Calls calls) : {}
+ {
+ 	 arithmetic_expression_priority_low(variables, calls) ( comparison_operator() arithmetic_expression_priority_low(variables, calls) )*
+ }
+
+ void arithmetic_expression_priority_low(List<Variable> variables, Calls calls) : {}
+ {
+ 	arithmetic_expression(variables, calls) ( arithmetic_operation_piority_low() arithmetic_expression(variables, calls) )*
+ }
+
+ void arithmetic_expression(List<Variable> variables, Calls calls) : {}
+ {
+ 	unary_expression(variables, calls) ( arithmetic_operation() unary_expression(variables, calls) )*
+ }
+
+ void unary_expression(List<Variable> variables, Calls calls) : {}
+ {
+ 	( unary_operator() )? term(variables, calls)
+ }
+
+ void term(List<Variable> variables, Calls calls) : {}
+ {
+ 	value(variables, calls) | "(" logical_expression(variables, calls) ")"
+ }
+
+ void unary_operator() : {}
+ {
+ 	< PREFIX_INCREMENT >
+     | < PREFIX_DECREMENT >
+     | < NOT >
+ }
+
+ void value(List<Variable> variables, Calls calls) : {}
+ {
+ 	LOOKAHEAD(2) function_call(variables, calls)
+     | < IDENTIFIER >
+     | litteral_value()
+ }
+
+ void arithmetic_operation() : {}
+ {
+ 	< MULTIPLY > | < DIVIDE > | < MODULO >
+ }
+
+ void arithmetic_operation_piority_low() : {}
+ {
+ 	< PLUS > | < MINUS >
+ }
+
+ void comparison_operator() : {}
+ {
+   	< EQUAL > | < NOT_EQUAL > | < GREATER > | < GREATER_OR_EQUAL > | < LOWER > | < LOWER_OR_EQUAL >
+ }
+
+ void logical_connector() : {}
+ {
+ 	< AND > | < OR >
+ }
+
+ void function_call(List<Variable> variables, Calls calls) : {Token test = null;}
+ {
+ 	[test = <IDENTIFIER> <DOT>] < IDENTIFIER > "(" (logical_expression(variables, calls) ("," logical_expression(variables, calls))*)? ")"
+ 	{
+         if (test != null) {
+             for(Variable var : variables) {
+                 if (var.name.equals(test.image)) {
+                     calls.add(var.type);
+                 }
+             }
+         }
+     }
+ }
+
+ String assignment(List<Variable> variables, Calls calls) : {Token name;}
+ {
+ 	name=<IDENTIFIER> < ASSIGN > logical_expression(variables, calls)
+ 	{return name.image;}
+ }
+
+ void while_loop(List<Variable> variables, Calls calls) : {}
+ {
+ 	< WHILE > "(" logical_expression(variables, calls) ")" "{" (statement(variables, calls))* "}"
+ }
+
+ void return_statement(List<Variable> variables, Calls calls) : {}
+ {
+ 	< RETURN > logical_expression(variables, calls) ";"
+ }

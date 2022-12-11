@@ -1,278 +1,0 @@
-/**
- * JavaCC template file created by SF JavaCC plugin 1.5.28+ wizard for JavaCC 1.5.0+
- */options{  static = false;
-  debug_parser = false;}PARSER_BEGIN(Grammaire)
-import java.io.*;
-
-public class Grammaire{
-  public static void main(String args []) throws ParseException  {    
-    try {      
-	    InputStream inputStream = new FileInputStream(new File("test.txt"));	    Grammaire parser = new Grammaire(inputStream);	    parser.function();
- 	 } catch(IOException exception) {
-		exception.printStackTrace();
- 	 }  }}PARSER_END(Grammaire)
-SKIP :
-{
-  " "
-| "\r"
-| "\t"
-| "\n"
-}
-
-MORE :
-{
-	"//" : IN_SINGLE_LINE_COMMENT
-}
-
-<IN_SINGLE_LINE_COMMENT>
-SPECIAL_TOKEN :
-{
-  <SINGLE_LINE_COMMENT: "\n" | "\r" | "\r\n" > : DEFAULT
-}
-
-<IN_SINGLE_LINE_COMMENT>
-MORE :
-{
-  < ~[] >
-}
-TOKEN : /* OPERATEURS */{  < PLUS : "+" >| < MINUS : "-" >| < MULTIPLY : "*" >| < DIVIDE : "/" >
-| < MODULO : "%" >
-| < ASSIGN : "=" >
-| < EQUAL : "==" >
-| < NOT_EQUAL : "<>" >
-| < GREATER : ">" >
-| < GREATER_OR_EQUAL : ">=" >
-| < LOWER : "<" >
-| < LOWER_OR_EQUAL : "<=" >
-| < AND : "&&" >
-| < OR : "||" >
-| < NOT : "!" >
-| < PREFIX_INCREMENT : "++" >
-| < PREFIX_DECREMENT : "--" >}
-
-TOKEN : /* MOTS CLÉS */
-{
-  < IF : "if" >
-| < ELSE : "else" >
-| < WHILE : "while" >
-| < TRUE: "TRUE" >
-| < FALSE : "FALSE" >
-| < RETURN : "return" >
-| < NEW : "new" >
-}
-
-TOKEN : /* TYPES */
-{  < INTEGER_TYPE : "int" >
-| < DECIMAL_TYPE : "double" >
-| < BOOLEAN : "bool" >
-| < VOID : "void" >
-}TOKEN :	/* LITTERAUX */{
-  < #DIGIT: ["0"-"9"] >
-| < #LETTER : ["A"-"Z", "a" - "z"] >
-| < INTEGER : ("-")? ( < DIGIT > )+ >
-| < DECIMAL :
-		("-")? (< DIGIT >)+ "." (< DIGIT >)*
-	|  	("-")? (< DIGIT >)* "." (< DIGIT >)+
-	>
-| < IDENTIFIER : < LETTER > (< LETTER > | < DIGIT >)* >}
-
-void function() :
-{
-}
-{
-	(
-		type() | < VOID > 
-	)
-	< IDENTIFIER > "(" (parameter_declaration() ("," parameter_declaration())*)? ")" "{"
-		function_body()
-	"}"	
-	< EOF >
-}
-
-void parameter_declaration():
-{
-}
-{
-	type() < IDENTIFIER >
-}
-
-void function_body() :
-{
-}
-{
-    ( variable_declaration() ";" )*
-  	( statement() )*
-	( return_statement() )?}
-void statement() :
-{
-}
-{
-	(		(
-			LOOKAHEAD(2)			assignment() | function_call()
-		) ";" 
-		| conditional_statement()
-		| while_loop()
-	)
-}
-
-void variable_declaration():
-{
-}
-{
-	type() assignment()	("," assignment() )*
-}
-
-void litteral_value() :
-{
-}
-{
-	(		< INTEGER >
-		| < DECIMAL >
-		| boolean_value()
-	)
-}
-
-void boolean_value() :
-{
-}
-{
-	( < TRUE > | < FALSE > )
-}
-
-void type() :
-{
-}
-{
-	(
-		< INTEGER_TYPE >
-		| < DECIMAL_TYPE >
-		| < BOOLEAN >
-	)
-}
-
-void conditional_statement():
-{
-}
-{
-	< IF > "(" logical_expression()	")" "{" ( statement() )*
-	( LOOKAHEAD(2) "}" < ELSE > "{" ( statement() )* )? "}"
-}
-
-void logical_expression():
-{
-}
-{
- 	comparison_expression() ( logical_connector() comparison_expression() )*
-}
-
-void comparison_expression():
-{
-}
-{
-	 arithmetic_expression_priority_low() ( comparison_operator() arithmetic_expression_priority_low() )*  
-}
-
-void arithmetic_expression_priority_low():
-{
-}
-{
-	arithmetic_expression() ( arithmetic_operation_piority_low() arithmetic_expression() )*
-}
-
-void arithmetic_expression():
-{
-}
-{
-	unary_expression() ( arithmetic_operation() unary_expression() )*
-}
-
-void unary_expression():
-{
-}
-{
-	( unary_operator() )? term()
-}
-
-void term():
-{
-}
-{
-	value() | "(" logical_expression() ")"
-}
-
-void unary_operator():
-{
-}
-{
-	(		< PREFIX_INCREMENT >
-		| < PREFIX_DECREMENT >
-		| < NOT >
-	)
-}
-
-void value():
-{
-}
-{  	
-	( 
-		LOOKAHEAD(2) function_call()
-		| < IDENTIFIER >
-		| litteral_value()
-	)
-}
-
-void arithmetic_operation():
-{
-}
-{
-	( < MULTIPLY > | < DIVIDE > | < MODULO > )
-}
-
-void arithmetic_operation_piority_low():
-{
-}
-{
-	( < PLUS > | < MINUS > )
-}
-
-void comparison_operator():
-{
-}
-{
-  	( < EQUAL > | < NOT_EQUAL > | < GREATER > | < GREATER_OR_EQUAL > | < LOWER > | < LOWER_OR_EQUAL > 	)
-}
-
-void logical_connector():
-{
-}
-{
-	( < AND > | < OR > )
-}
-
-void function_call():
-{
-}
-{
-	< IDENTIFIER > "(" (logical_expression() ("," logical_expression())*)? ")"
-}
-
-void assignment():
-{
-}
-{
-	< IDENTIFIER > < ASSIGN > logical_expression()
-}
-
-void while_loop():
-{
-}
-{
-	< WHILE > "(" logical_expression() ")" "{" (statement())* "}"
-}
-
-void return_statement():
-{
-}
-{
-	< RETURN > logical_expression() ";"
-}

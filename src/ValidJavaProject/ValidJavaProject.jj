@@ -1,0 +1,2370 @@
+options {
+  JAVA_UNICODE_ESCAPE = true;
+  //ERROR_REPORTING = true;
+  STATIC = false;
+  DEBUG_PARSER = false;
+}
+
+PARSER_BEGIN(JavaParser)
+
+import java.io.*;
+import java.util.*;
+
+
+public class JavaParser
+{
+
+   private InputStream inputStream = null;
+   private static List<String> files = null;
+
+    /**
+     * Constructor for JavaParser.
+     * @param filename name of the file to parse
+     */
+   public JavaParser(String filename)
+   {
+      this(System.in);
+      try {
+          File file = new File(filename);
+          if (file.isDirectory()) {
+              files = new ArrayList<>();
+              getFiles(file);
+              System.out.println(files.get(0));
+              inputStream = new FileInputStream(files.get(0));
+          } else {
+              inputStream = new FileInputStream(filename);
+          }
+          ReInit(inputStream);
+      }
+      catch(Exception e) {
+        e.printStackTrace();
+      }
+   }
+
+   JavaParser(int index) throws FileNotFoundException {
+       inputStream = new FileInputStream(files.get(index));
+       jj_input_stream = new JavaCharStream(inputStream);
+       token_source = new JavaParserTokenManager(jj_input_stream);
+       token = new Token();
+       jj_ntk = -1;
+       ReInit(inputStream);
+   }
+
+   JavaParser(JavaCharStream stream) {
+        jj_input_stream = stream;
+        token_source = new JavaParserTokenManager(jj_input_stream);
+        token = new Token();
+        jj_ntk = -1;
+   }
+
+   private void getFiles(File directory) {
+       if (directory.listFiles() == null)
+           return;
+
+       for (File file : directory.listFiles()) {
+           if (file.isFile() && file.getName().endsWith(".java")) {
+               files.add(file.getPath());
+           } else {
+               getFiles(file);
+           }
+       }
+   }
+
+  /*
+   * Returns true if the next token is not in the FOLLOW list of "expansion".
+   * It is used to decide when the end of an "expansion" has been reached.
+   */
+  private boolean notTailOfExpansionUnit() {
+    Token t;
+    t = getToken(1);
+    if (t.kind == BIT_OR || t.kind == COMMA || t.kind == RPAREN || t.kind == RBRACE || t.kind == RBRACKET) return false;
+    return true;
+  }
+
+  // Main method for testing, here is a one-liner bash script that can be run from
+  // the command line:
+  // for f in /some/directory/full/of/java/files/*.java; do java -cp . JavaParser $f; done
+  public static void main(String[] args) {
+    JavaParser parser;
+    if (args.length == 0) {
+      System.out.println("Java Parser Version 1.7:  Reading from standard input...");
+      parser = new JavaParser(System.in);
+    } else if (args.length == 1) {
+      System.out.println("Java Parser Version 1.7:  Reading from file " + args[0] + "...");
+      parser = new JavaParser(args[0]);
+    } else {
+      System.out.println("Java Parser Version 1.7:  Usage is one of:");
+      System.out.println("         java JavaParser < inputfile");
+      System.out.println("OR");
+      System.out.println("         java JavaParser inputfile");
+      return;
+    }
+    try {
+        FileLogger.init();
+      if (files != null)
+          for (int i = 0; i < files.size(); i++) {
+            try {
+                System.out.println(files.get(i));
+                parser = new JavaParser(i);
+                parser.CompilationUnit();
+              } catch (FileNotFoundException e) {
+                System.out.println("Java Parser Version 1.7:  File " + args[0] + " not found.");
+                return;
+              }
+          }
+        else
+          parser.CompilationUnit();
+
+        Links.print();
+        FileLogger.close();
+      System.out.println("Java Parser Version 1.7:  Java program parsed successfully.");
+    } catch (ParseException e) {
+      System.out.println(e.getMessage());
+      System.out.println("Java Parser Version 1.7:  Encountered errors during parse.");
+    }
+  }
+}
+
+class FileLogger {
+    static FileWriter fw = null;
+
+    static void init() {
+        try {
+            fw = new FileWriter("output.txt");
+        } catch (Exception e) {
+            System.out.println(e.getMessage());
+        }
+    }
+
+    static void println(String string) {
+        try {
+            fw.write(string + "\n");
+        } catch (Exception e) {
+            System.out.println(e.getMessage());
+        }
+    }
+
+    static void print(String string) {
+        try {
+            fw.write(string);
+        } catch (Exception e) {
+            System.out.println(e.getMessage());
+        }
+    }
+
+    static void close() {
+        try {
+            fw.close();
+        } catch (Exception e) {
+            System.out.println(e.getMessage());
+        }
+    }
+}
+
+
+
+class OutputUtils {
+	static void pourcentage(String message, int total, int attributes) {
+		if (total > 0) { FileLogger.println(message + String.format("%.2f", (float) attributes/total * 100) + "%"); }
+		else { FileLogger.println(message + "0%"); }
+	}
+
+	static void lineOutput(Integer repeat) {
+		FileLogger.println(new String(new char[repeat]).replace("\0", "-"));
+	}
+}
+
+class TypeAttributeCounter {
+  	private boolean isReferencedAttribute;
+  	private Integer nbSimpleAttributes, nbReferencedAttributes;
+  	static Map<String, Integer> nbSimpleAttributesByClass = new HashMap<>();
+	static Map<String, Integer> nbReferencedAttributesByClass = new HashMap<>();
+
+	TypeAttributeCounter() {
+	  	isReferencedAttribute = false;
+		nbSimpleAttributes =  0;
+		nbReferencedAttributes = 0;
+	}
+
+	void incrementSimpleAttributes() {
+		++nbSimpleAttributes;
+	}
+
+	void incrementReferencedAttributes() {
+		++nbReferencedAttributes;
+		isReferencedAttribute = true;
+	}
+
+	int getTotalForClass(String name) {
+		return nbSimpleAttributesByClass.get(name) + nbReferencedAttributesByClass.get(name);
+	}
+
+	boolean getIsReferencedAttribute() { return isReferencedAttribute; }
+
+	void reset() { nbSimpleAttributes = nbReferencedAttributes = 0; }
+
+	void compile(String currentClassName) {
+		nbSimpleAttributesByClass.put(currentClassName, nbSimpleAttributes);
+		nbReferencedAttributesByClass.put(currentClassName, nbReferencedAttributes);
+		reset();
+	}
+
+	void resetIsReferenced() { isReferencedAttribute = false; }
+
+	void output(String name) {
+	  	Integer lineWidth = 15;
+	  	Integer total = getTotalForClass(name);
+	  	String pourcentLine = "Pourcentage d'attribut";
+
+		FileLogger.println("\nNombre d'attribut total : " + total);
+		OutputUtils.lineOutput(lineWidth);
+
+		FileLogger.println("Nombre d'attribut de type simple : " + nbSimpleAttributesByClass.get(name));
+		OutputUtils.pourcentage(pourcentLine + " de type simple : ", total, nbSimpleAttributesByClass.get(name));
+		OutputUtils.lineOutput(lineWidth);
+
+		FileLogger.println("Nombre d'attribut de référence : " + nbReferencedAttributesByClass.get(name));
+		OutputUtils.pourcentage(pourcentLine + " de référence : ", total, nbReferencedAttributesByClass.get(name));
+		OutputUtils.lineOutput(lineWidth);
+	}
+}
+
+class SpecifierAttributeCounter {
+	Integer privates, publics, protecteds;
+	static Map<String, Map<Keys, Integer>> nbAttributesBySpecifierByClass = new HashMap<>();
+
+	SpecifierAttributeCounter() {
+		privates = 0;
+		publics = 0;
+		protecteds = 0;
+	}
+
+	void increment(Keys key) {
+		switch (key) {
+			case PRIVATE: ++privates; break;
+			case PUBLIC: ++publics; break;
+			case PROTECTED: ++protecteds; break;
+		}
+	}
+
+	void reset() { privates = publics = protecteds = 0; }
+
+	void compile(String name) {
+	  	nbAttributesBySpecifierByClass.put(name, new HashMap<Keys, Integer>());
+		nbAttributesBySpecifierByClass.get(name).put(Keys.PUBLIC, publics);
+		nbAttributesBySpecifierByClass.get(name).put(Keys.PROTECTED, protecteds);
+		nbAttributesBySpecifierByClass.get(name).put(Keys.PRIVATE, privates);
+		reset();
+	}
+
+	void output(String name, Integer total) {
+	  	Integer repeatLong = 15, repeatDefault = 8;
+	  	String pourcentLine = "Pourcentage d'attribut";
+
+		FileLogger.println("Nombre d'attribut public : " + nbAttributesBySpecifierByClass.get(name).get(Keys.PUBLIC));
+		OutputUtils.pourcentage(pourcentLine + "  public : ", total, nbAttributesBySpecifierByClass.get(name).get(Keys.PUBLIC));
+		OutputUtils.lineOutput(repeatDefault);
+
+		FileLogger.println("Nombre d'attribut private : " + nbAttributesBySpecifierByClass.get(name).get(Keys.PRIVATE));
+		OutputUtils.pourcentage(pourcentLine + "  private : ", total, nbAttributesBySpecifierByClass.get(name).get(Keys.PRIVATE));
+		OutputUtils.lineOutput(repeatDefault);
+
+		FileLogger.println("Nombre d'attribut protected : " + nbAttributesBySpecifierByClass.get(name).get(Keys.PROTECTED));
+		OutputUtils.pourcentage(pourcentLine + "  protected : ", total, nbAttributesBySpecifierByClass.get(name).get(Keys.PROTECTED));
+		OutputUtils.lineOutput(repeatLong);
+	}
+}
+
+class VisibilityLister {
+  	ArrayList<String> allDeclarations;
+  	Map<String, ArrayList<String>> associationsByClass;
+  	private ArrayList<String> permanentVisibilities;
+
+	VisibilityLister(ArrayList<String> allDeclarations, Map<String, ArrayList<String>> associationsByClass, String name, String specifier) {
+//        System.out.println("-------------------------");
+//        System.out.println("VisibilityLister");
+//        System.out.println(allDeclarations);
+//        System.out.println(associationsByClass);
+//        System.out.println(name);
+//        System.out.println(specifier);
+//        System.out.println("-------------------------");
+
+		this.allDeclarations = allDeclarations;
+		this.associationsByClass = associationsByClass;
+		permanentVisibilities = new ArrayList<>();
+		compile(name, specifier);
+	}
+
+
+	private void compile(String name, String specifier) {
+		for (Map.Entry<String, ArrayList<String>> entry : associationsByClass.entrySet()) {
+			String entryClassKey = entry.getKey();
+			ArrayList<String> entryAssociations = entry.getValue();
+
+			if (entryClassKey.equals(name)) { continue; }
+
+			for (String association : entryAssociations) {
+				if (association.equals(name)) {
+				  	 permanentVisibilities.add(entryClassKey);
+				}
+			}
+		}
+	}
+
+	void output() {
+		FileLogger.println("Visible for : " + permanentVisibilities);
+	}
+}
+
+class StatsMemento extends Stats {
+    TypeAttributeCounter typeAttributeCounter;
+    SpecifierAttributeCounter specifierAttributeCounter;
+    ArrayList<String> associatedWith;
+    ArrayList<String> allDeclaredClasses;
+    Map<String, ArrayList<String>> associationsByClass;
+    Map<String, String> specifiersByClass;
+
+    public StatsMemento() {
+        this.typeAttributeCounter = Stats.typeAttributeCounter;
+        this.specifierAttributeCounter = Stats.specifierAttributeCounter;
+        this.associatedWith = Stats.associatedWith;
+//        this.allDeclaredClasses = Stats.allDeclaredClasses;
+//        this.associationsByClass = Stats.associationsByClass;
+//        this.specifiersByClass = Stats.specifiersByClass;
+    }
+}
+
+class Stats {
+	static TypeAttributeCounter typeAttributeCounter = new TypeAttributeCounter();
+	static SpecifierAttributeCounter specifierAttributeCounter = new SpecifierAttributeCounter();
+
+	static ArrayList<String> associatedWith = new ArrayList<>();
+
+	static ArrayList<String> allDeclaredClasses = new ArrayList<>();
+
+	static Map<String, ArrayList<String>> associationsByClass = new HashMap<>();
+	static Map<String, String> specifiersByClass = new HashMap<>();
+
+    static Stack<StatsMemento> statsStack = new Stack<>();
+
+    static void stackInternalClass() {
+        statsStack.push(new StatsMemento());
+        reset();
+//        System.out.println("STACKING");
+//        System.out.println(typeAttributeCounter.nbSimpleAttributesByClass);
+//        System.out.println(typeAttributeCounter.nbReferencedAttributesByClass);
+    }
+
+    static void popInternalClass() {
+        StatsMemento memento = statsStack.pop();
+        typeAttributeCounter = memento.typeAttributeCounter;
+        specifierAttributeCounter = memento.specifierAttributeCounter;
+        associatedWith = memento.associatedWith;
+//        allDeclaredClasses = memento.allDeclaredClasses;
+//        associationsByClass = memento.associationsByClass;
+//        specifiersByClass = memento.specifiersByClass;
+    }
+
+	static void compileClasses(String currentClassName, String specifier) {
+	  	String spec = (specifier == null || specifier.isBlank()) ? "public" : specifier;
+	  	allDeclaredClasses.add(currentClassName);
+
+		associationsByClass.put(currentClassName, associatedWith);
+		associatedWith = new ArrayList<>();
+
+		specifiersByClass.put(currentClassName, spec);
+
+		typeAttributeCounter.compile(currentClassName);
+		specifierAttributeCounter.compile(currentClassName);
+	}
+
+    static void reset() {
+        typeAttributeCounter = new TypeAttributeCounter();
+        specifierAttributeCounter = new SpecifierAttributeCounter();
+        associatedWith = new ArrayList<>();
+    }
+
+    static void incrementAttributeCounter(String visibility) {
+        if (visibility == null || visibility.equals("public")) { Stats.specifierAttributeCounter.increment(Keys.PUBLIC); }
+        else if (visibility.equals("private")) { Stats.specifierAttributeCounter.increment(Keys.PRIVATE); }
+        else if (visibility.equals("protected")) { Stats.specifierAttributeCounter.increment(Keys.PROTECTED); }
+    }
+
+	static void output() {
+	  	Integer repeatLong = 15, repeatDefault = 8;
+
+		for (Map.Entry<String, String> entry : specifiersByClass.entrySet()) {
+			String name = entry.getKey();
+			String specifier = entry.getValue();
+			VisibilityLister visibilityLister = new VisibilityLister(allDeclaredClasses, associationsByClass, name, specifiersByClass.get(name));
+			ClassLink associations = Links.get(name).getAssociation();
+			String pourcentLine = "Pourcentage d'attribut";
+
+			FileLogger.println("\n");
+			OutputUtils.lineOutput(repeatLong);
+			FileLogger.println("Nom de la classe : " + name);
+			OutputUtils.lineOutput(repeatDefault);
+			FileLogger.println("Spécificateur d'accès : " + specifier);
+			FileLogger.println("Nombre d'associations : " + associations.size());
+			FileLogger.println("Associations : " + associations.getNames());
+            FileLogger.println("Couplage : " + ClassCalls.getCalls(name));
+
+			visibilityLister.output();
+
+			typeAttributeCounter.output(name);
+			specifierAttributeCounter.output(name, typeAttributeCounter.getTotalForClass(name));
+		}
+	}
+}
+
+enum Keys { PRIVATE, PROTECTED, PUBLIC }
+
+
+//----Option 3-4----
+
+class Link {
+  public String from;
+  public String to;
+  public LinkType type;
+
+  public Link() {}
+  public Link(String from, String to, LinkType type) {
+      this.from = from;
+      this.to = to;
+      this.type = type;
+  }
+
+  public String toString() {
+      return from + ((type == LinkType.INHERITANCE) ? "---|>" : "-----") + to;
+  }
+}
+
+class ClassLink {
+  String name = "";
+  List<Link> links = new ArrayList<>();
+
+  public boolean hasLinks() {
+      return links.size() > 0;
+  }
+
+  public void add(Link link) {
+      if (!contains(link))
+        links.add(link);
+  }
+
+  public void addAssociation(Token type) {
+      if (type != null) {
+          // check if the first letter is a capital letter
+          if (name.charAt(0) != name.toLowerCase().charAt(0)) {
+              add(new Link(name, type.image, LinkType.ASSOCIATION));
+          }
+      }
+  }
+
+  public ClassLink getAssociation() {
+      ClassLink classLink = new ClassLink();
+      for (Link link : links) {
+          if (link.type == LinkType.ASSOCIATION)
+              classLink.add(link);
+      }
+      return classLink;
+  }
+
+  boolean contains(Link link) {
+      for (Link l : links)
+          if (l.to.equals(link.to))
+              return true;
+      return false;
+  }
+
+  public int size() {
+      return links.size();
+  }
+
+  public String getNames() {
+      StringBuilder sb = new StringBuilder();
+      sb.append("[");
+      if (links.size() > 0) {
+          for (Link link : links)
+              sb.append(link.to).append(", ");
+
+          // remove last comma
+          sb.delete(sb.length() - 2, sb.length());
+      }
+      sb.append("]");
+      return sb.toString();
+  }
+
+  public String toString() {
+      StringBuilder sb = new StringBuilder();
+      if (links.size() > 0) {
+          for (Link link : links)
+              sb.append(link).append(", ");
+
+          // remove last comma
+          sb.delete(sb.length() - 2, sb.length());
+      }
+      return sb.toString();
+  }
+}
+
+class Links {
+  static List<ClassLink> classLinks = new ArrayList<>();
+  static Set<String> names = new HashSet<>();
+  static ClassLink currentClassLink = new ClassLink();
+  static Stack<ClassLink> classLinkStack = new Stack<>();
+
+  static void addCurrent() {
+      currentClassLink.name = getClassName();
+      classLinks.add(currentClassLink);
+      names.add(currentClassLink.name);
+      currentClassLink = new ClassLink();
+  }
+
+  private static String getClassName() {
+      StringBuilder sb = new StringBuilder();
+      if (!classLinkStack.isEmpty()) {
+          for (ClassLink classLink : classLinkStack)
+            sb.append(classLink.name).append(".");
+      }
+      sb.append(currentClassLink.name);
+
+      return sb.toString();
+  }
+
+  static void stackInternalClass() {
+      classLinkStack.push(currentClassLink);
+  }
+
+  static void popInternalClass() {
+      currentClassLink = classLinkStack.pop();
+  }
+
+  static void reset() {
+      classLinks = new ArrayList<>();
+      names = new HashSet<>();
+      currentClassLink = new ClassLink();
+  }
+
+  static void print() {
+      FileLogger.println("\n------Class list------");
+      for(String name: names)
+          FileLogger.println(name);
+
+      FileLogger.println("------Class links------");
+
+      for(ClassLink classLink: classLinks)
+          if (classLink.hasLinks())
+              FileLogger.println(classLink.toString());
+
+      FileLogger.println("-----------------------");
+  }
+
+  static ClassLink get(String name) {
+      for (ClassLink link : classLinks)
+          if (link.name.equalsIgnoreCase(name))
+              return link;
+
+      return null;
+  }
+}
+
+enum LinkType {
+  INHERITANCE,
+  ASSOCIATION
+}
+
+
+class ClassVariables {
+    public static Set<Variable> functionVariables = new HashSet<>();
+    public static Set<Variable> classVariables = new HashSet<>();
+    public static String currentClassName;
+
+    public static void resetClass() {
+        classVariables.clear();
+        functionVariables.clear();
+    }
+
+    public static void resetFunction() {
+        functionVariables.clear();
+    }
+
+    static void reset() {
+        functionVariables = new HashSet<>();
+        classVariables = new HashSet<>();
+        currentClassName = null;
+    }
+
+    public static Variable getVariable(String variableName) {
+        for (Variable variable: functionVariables)
+            // also check for type in case of static function call
+            if (variable.name.equals(variableName) || variable.type.equals(variableName))
+                return variable;
+
+        for (Variable variable: classVariables)
+            if (variable.name.equals(variableName) || variable.type.equals(variableName))
+                return variable;
+
+        return null;
+    }
+
+    public static void printFunction() {
+        for (Variable variable: functionVariables)
+            FileLogger.print(variable + ", ");
+    }
+
+    public static void printClass() {
+        for (Variable variable: classVariables)
+            FileLogger.print(variable + ", ");
+        }
+}
+
+class Variable {
+   public String type;
+   public String name;
+
+   public Variable(String type, String name) {
+       this.type = type;
+       this.name = name;
+   }
+
+   public Variable(Token type, Token name) {
+       this.type = type.image;
+       this.name = name.image;
+   }
+
+   public String toString() {
+       return type + " " + name;
+   }
+}
+
+class ClassCalls {
+    private static HashMap<String, Calls> classCalls = new HashMap<>();
+
+    static void reset() {
+        classCalls = new HashMap<>();
+    }
+
+    public static void addCall(String className) {
+        String currentClass = ClassVariables.currentClassName;
+        if (!classCalls.containsKey(currentClass)) {
+           classCalls.put(currentClass, new Calls());
+       }
+        classCalls.get(currentClass).add(className);
+    }
+
+    public static Calls getCalls(String className) {
+        return (classCalls.containsKey(className)) ? classCalls.get(className) : new Calls();
+    }
+
+    public static void print() {
+        for (Map.Entry<String, Calls> entry : classCalls.entrySet()) {
+            FileLogger.println(entry.getKey());
+            FileLogger.println(entry.getValue().toString());
+        }
+    }
+}
+
+class Calls {
+   private HashMap<String, Integer> calls = new HashMap<>();
+
+   public void add(String className) {
+       if (!calls.containsKey(className)) {
+           calls.put(className, 0);
+       }
+       calls.replace(className, calls.get(className) + 1);
+   }
+
+   public String toString() {
+       if (calls.isEmpty())
+           return "";
+
+       StringBuilder builder = new StringBuilder();
+       for (Map.Entry<String, Integer> entry : calls.entrySet()) {
+           builder.append(entry.getKey());
+           builder.append(" -> ");
+           builder.append(entry.getValue());
+           builder.append(", ");
+       }
+       builder.setLength(builder.length() - 2);
+       return builder.toString();
+   }
+}
+
+class InternalClassUtils{
+    static void stack() {
+        Links.stackInternalClass();
+        Stats.stackInternalClass();
+    }
+    static void pop() {
+        Links.popInternalClass();
+        Stats.popInternalClass();
+    }
+}
+
+PARSER_END(JavaParser)
+
+
+
+/********************************************
+ * THE JAVA TOKEN SPECIFICATION STARTS HERE *
+ ********************************************/
+
+/* WHITE SPACE */
+
+SKIP :
+{
+  " "
+| "\t"
+| "\n"
+| "\r"
+| "\f"
+}
+
+/* COMMENTS */
+
+MORE :
+{
+  /* danson, added backup(2) for special handling of single line comments at
+  the end of a file, see <IN_SINGLE_LINE_COMMENT> special token below */
+  "//" { input_stream.backup(2); } : IN_SINGLE_LINE_COMMENT
+|
+  <"/**" ~["/"]> { input_stream.backup(1); } : IN_FORMAL_COMMENT
+|
+  "/*" : IN_MULTI_LINE_COMMENT
+}
+
+<IN_SINGLE_LINE_COMMENT>
+SPECIAL_TOKEN :
+{
+  /* this is the original, I've replaced with the next line to allow a single
+  line comment at the end of a java file without a new line following the
+  comment.  The java language specification says that single line comments
+  must be followed by an end-of-line marker (see section 3.4), so this new rule
+  relaxes that requirement slightly by allowing the line terminator to be
+  optional.  This only makes sense when the comment is the last line of the
+  source file, all other single line comments will have a line terminator. This
+  request was posted as a bug against JBrowse, I don't see any problem with
+  allowing it, especially since Sun's compiler doesn't complain. */
+  /* <SINGLE_LINE_COMMENT: "\n" | "\r" | "\r\n" > : DEFAULT */
+  < SINGLE_LINE_COMMENT: "//"(~["\n","\r"])* ("\n"|"\r"|"\r\n")? > : DEFAULT
+}
+
+<IN_FORMAL_COMMENT>
+SPECIAL_TOKEN :
+{
+  <FORMAL_COMMENT: "*/" > : DEFAULT
+}
+
+<IN_MULTI_LINE_COMMENT>
+SPECIAL_TOKEN :
+{
+  <MULTI_LINE_COMMENT: "*/" > : DEFAULT
+}
+
+<IN_SINGLE_LINE_COMMENT,IN_FORMAL_COMMENT,IN_MULTI_LINE_COMMENT>
+MORE :
+{
+  < ~[] >
+}
+
+/* RESERVED WORDS AND LITERALS */
+
+TOKEN :
+{
+  < ABSTRACT: "abstract" >
+| < ASSERT: "assert" >
+| < BOOLEAN: "boolean" >
+| < BREAK: "break" >
+| < BYTE: "byte" >
+| < CASE: "case" >
+| < CATCH: "catch" >
+| < CHAR: "char" >
+| < CLASS: "class" >
+| < CONST: "const" >
+| < CONTINUE: "continue" >
+| < _DEFAULT: "default" >
+| < DO: "do" >
+| < DOUBLE: "double" >
+| < ELSE: "else" >
+| < ENUM: "enum" >
+| < EXTENDS: "extends" >
+| < FALSE: "false" >
+| < FINAL: "final" >
+| < FINALLY: "finally" >
+| < FLOAT: "float" >
+| < FOR: "for" >
+| < GOTO: "goto" >
+| < IF: "if" >
+| < IMPLEMENTS: "implements" >
+| < IMPORT: "import" >
+| < INSTANCEOF: "instanceof" >
+| < INT: "int" >
+| < INTERFACE: "interface" >
+| < LONG: "long" >
+| < NATIVE: "native" >
+| < NEW: "new" >
+| < NULL: "null" >
+| < PACKAGE: "package">
+| < PRIVATE: "private" >
+| < PROTECTED: "protected" >
+| < PUBLIC: "public" >
+| < RETURN: "return" >
+| < SHORT: "short" >
+| < STATIC: "static" >
+| < STRICTFP: "strictfp" >
+| < SUPER: "super" >
+| < SWITCH: "switch" >
+| < SYNCHRONIZED: "synchronized" >
+| < THIS: "this" >
+| < THROW: "throw" >
+| < THROWS: "throws" >
+| < TRANSIENT: "transient" >
+| < TRUE: "true" >
+| < TRY: "try" >
+| < VOID: "void" >
+| < VOLATILE: "volatile" >
+| < WHILE: "while" >
+}
+
+/* LITERALS */
+// DONE: Java 7 allows a binary literal.
+// DONE: Java 7 allows underscores in numeric literals to improve readability, e.g. 
+// long creditCardNumber = 1234_5678_9012_3456L;
+TOKEN :
+{
+  < INTEGER_LITERAL:
+        <DECIMAL_LITERAL> (["l","L"])?
+      | <HEX_LITERAL> (["l","L"])?
+      | <BINARY_LITERAL> (["l","L"])?
+      | <OCTAL_LITERAL> (["l","L"])?
+  >
+|
+  < #DECIMAL_LITERAL: ["1"-"9"] ((["_"])*["0"-"9"])* >      // Java 7 allows underscores
+|
+  < #HEX_LITERAL: "0" ["x","X"] (["0"-"9","a"-"f","A"-"F"])((["_"])*["0"-"9","a"-"f","A"-"F"])* >      // Java 7 allows underscores
+|
+  < #BINARY_LITERAL: "0" ["b","B"] (["0"-"1"])((["_"])*["0"-"1"])* >   // new for Java 7, also allows underscores
+|
+  < #OCTAL_LITERAL: "0" ((["_"])*(["0"-"7"]))* >      // Java 7 allows underscores
+|
+  < FLOATING_POINT_LITERAL:
+        (["0"-"9"])((["_"])*(["0"-"9"]))* "." ((["0"-"9"])((["_"])*(["0"-"9"]))*)* (<EXPONENT>)? (["f","F","d","D"])?
+      | "." (["0"-"9"])((["_"])*(["0"-"9"]))* (<EXPONENT>)? (["f","F","d","D"])?
+      | (["0"-"9"])((["_"])*(["0"-"9"]))* <EXPONENT> (["f","F","d","D"])?
+      | (["0"-"9"])((["_"])*(["0"-"9"]))* (<EXPONENT>)? ["f","F","d","D"]
+  >
+  
+|
+  < #EXPONENT: ["e","E"] (["+","-"])? (["0"-"9"])+ >
+|
+  < CHARACTER_LITERAL:
+      "'"
+      (   (~["'","\\","\n","\r"])
+        | ("\\"
+            ( ["n","t","b","r","f","\\","'","\""]
+            | ["0"-"7"] ( ["0"-"7"] )?
+            | ["0"-"3"] ["0"-"7"] ["0"-"7"]
+            )
+          )
+      )
+      "'"
+  >
+|
+  < STRING_LITERAL:
+      "\""
+      (   (~["\"","\\","\n","\r"])
+        | ("\\"
+            ( ["n","t","b","r","f","\\","'","\""]
+            | ["0"-"7"] ( ["0"-"7"] )?
+            | ["0"-"3"] ["0"-"7"] ["0"-"7"]
+            )
+          )
+      )*
+      "\""
+  >
+}
+
+/* IDENTIFIERS */
+
+TOKEN :
+{
+  < IDENTIFIER: <LETTER> (<LETTER>|<DIGIT>)* >
+|
+  < #LETTER:
+      [
+       "\u0024",
+       "\u0041"-"\u005a",
+       "\u005f",
+       "\u0061"-"\u007a",
+       "\u00c0"-"\u00d6",
+       "\u00d8"-"\u00f6",
+       "\u00f8"-"\u00ff",
+       "\u0100"-"\u1fff",
+       "\u3040"-"\u318f",
+       "\u3300"-"\u337f",
+       "\u3400"-"\u3d2d",
+       "\u4e00"-"\u9fff",
+       "\uf900"-"\ufaff"
+      ]
+  >
+|
+  < #DIGIT:
+      [
+       "\u0030"-"\u0039",
+       "\u0660"-"\u0669",
+       "\u06f0"-"\u06f9",
+       "\u0966"-"\u096f",
+       "\u09e6"-"\u09ef",
+       "\u0a66"-"\u0a6f",
+       "\u0ae6"-"\u0aef",
+       "\u0b66"-"\u0b6f",
+       "\u0be7"-"\u0bef",
+       "\u0c66"-"\u0c6f",
+       "\u0ce6"-"\u0cef",
+       "\u0d66"-"\u0d6f",
+       "\u0e50"-"\u0e59",
+       "\u0ed0"-"\u0ed9",
+       "\u1040"-"\u1049"
+      ]
+  >
+}
+
+/* SEPARATORS */
+
+TOKEN :
+{
+  < LPAREN: "(" >
+| < RPAREN: ")" >
+| < LBRACE: "{" >
+| < RBRACE: "}" >
+| < LBRACKET: "[" >
+| < RBRACKET: "]" >
+| < SEMICOLON: ";" >
+| < COMMA: "," >
+| < DOT: "." >
+| < AT: "@" >
+}
+
+/* OPERATORS */
+
+TOKEN :
+{
+  < ASSIGN: "=" >
+| < LT: "<" >
+| < BANG: "!" >
+| < TILDE: "~" >
+| < HOOK: "?" >
+| < COLON: ":" >
+| < EQ: "==" >
+| < LE: "<=" >
+| < GE: ">=" >
+| < NE: "!=" >
+| < SC_OR: "||" >
+| < SC_AND: "&&" >
+| < INCR: "++" >
+| < DECR: "--" >
+| < PLUS: "+" >
+| < MINUS: "-" >
+| < STAR: "*" >
+| < SLASH: "/" >
+| < BIT_AND: "&" >
+| < BIT_OR: "|" >
+| < XOR: "^" >
+| < REM: "%" >
+| < LSHIFT: "<<" >
+| < PLUSASSIGN: "+=" >
+| < MINUSASSIGN: "-=" >
+| < STARASSIGN: "*=" >
+| < SLASHASSIGN: "/=" >
+| < ANDASSIGN: "&=" >
+| < ORASSIGN: "|=" >
+| < XORASSIGN: "^=" >
+| < REMASSIGN: "%=" >
+| < LSHIFTASSIGN: "<<=" >
+| < RSIGNEDSHIFTASSIGN: ">>=" >
+| < RUNSIGNEDSHIFTASSIGN: ">>>=" >
+| < ELLIPSIS: "..." >
+| < POINTER: "->" >
+| < DIAMOND: "<>" >
+
+}
+
+/* >'s need special attention due to generics syntax. */
+TOKEN :
+{
+  < RUNSIGNEDSHIFT: ">>>" >
+  {
+     matchedToken.kind = GT;
+     ((Token.GTToken)matchedToken).realKind = RUNSIGNEDSHIFT;
+     input_stream.backup(2);
+  }
+| < RSIGNEDSHIFT: ">>" >
+  {
+     matchedToken.kind = GT;
+     ((Token.GTToken)matchedToken).realKind = RSIGNEDSHIFT;
+     input_stream.backup(1);
+  }
+| < GT: ">" >
+}
+
+
+
+
+
+/*****************************************
+ * THE JAVA LANGUAGE GRAMMAR STARTS HERE *
+ *****************************************/
+
+/**
+ * Main entry point for parsing java files.
+ */
+void CompilationUnit():
+{
+}
+{
+    {Stats.reset(); ClassCalls.reset();}
+    [ LOOKAHEAD(2) PackageDeclaration() ]
+    ( ImportDeclaration() )*
+    (TypeDeclaration())*
+    {Stats.output();}
+    <EOF>
+}
+
+// FIXME: Stats, ClassCalls
+
+void PackageDeclaration():
+{
+}
+{
+    <PACKAGE> Name() ";"
+}
+
+void  ImportDeclaration():
+{
+}
+{
+    <IMPORT> [ <STATIC> ] Name() [ "." "*" ] ";"
+}
+
+/*
+ * Modifiers. We match all modifiers in a single rule to reduce the chances of
+ * syntax errors for simple modifier mistakes. It will also enable us to give
+ * better error messages.
+ * danson: the downside is this allows modifiers that aren't allowed
+ * in some constructs. 
+ * TODO: write productions for the actual modifiers allowed for each construct.
+ */
+
+String Modifiers():
+{
+ Token visibilityModifier = null;
+}
+{
+ (
+  LOOKAHEAD(2)
+  (
+   visibilityModifier=<PUBLIC>
+  |
+   <STATIC>
+  |
+   visibilityModifier=<PROTECTED>
+  |
+   visibilityModifier=<PRIVATE>
+  |
+   <FINAL>
+  |
+   <ABSTRACT>
+  |
+   <SYNCHRONIZED>
+  |
+   <NATIVE> 
+  |
+   <TRANSIENT>
+  |
+   <VOLATILE>
+  |
+   <STRICTFP>
+  |
+   Annotation()
+  )
+ )*
+ {return (visibilityModifier != null) ? visibilityModifier.image : null;}
+}
+
+/*
+ * Declaration syntax follows.
+ */
+
+// Handle classes, interfaces, enums, and annotations.
+void TypeDeclaration():
+{
+ String visibility;
+}
+{
+    ";"
+    |
+    visibility=Modifiers()
+    (
+      LOOKAHEAD(2)
+     ClassOrInterfaceDeclaration(visibility)
+    |
+     EnumDeclaration()
+    |
+     AnnotationTypeDeclaration()
+    )
+}
+
+void ClassOrInterfaceDeclaration(String visibility):
+{
+ Token name;
+ ClassLink classLink;
+}
+{
+      (
+          "class" | "interface" 
+      )
+      name=<IDENTIFIER>
+      {
+        Links.currentClassLink = new ClassLink();
+        Links.currentClassLink.name = name.image;
+        ClassVariables.currentClassName = name.image;
+      }
+      [ TypeParameters() ]
+      [ ExtendsList() ]
+      [ ImplementsList() ]
+      ClassOrInterfaceBody()
+      {
+        Links.addCurrent();
+        Stats.compileClasses(name.image, visibility);
+      }
+
+      /* danson, added this check for trailing semi-colon.  Apparently, this has been
+      legal since the beginning of Java, some sort of a C hold-over.  Sun's latest
+      Java 1.5 compiler doesn't mind it, but this parser whined if the class has a
+      semi-colon after the last }. */
+      [ LOOKAHEAD(2) <SEMICOLON> ]
+}
+
+void ExtendsList():
+{
+ String extension;
+}
+{
+    "extends" extension=ClassOrInterfaceType()
+    {Links.currentClassLink.add(new Link(Links.currentClassLink.name, extension, LinkType.INHERITANCE));}
+    (
+    "," extension=ClassOrInterfaceType()
+    {Links.currentClassLink.add(new Link(Links.currentClassLink.name, extension, LinkType.INHERITANCE));}
+    )*
+}
+
+void ImplementsList():
+{
+ String implementation;
+}
+{
+    "implements" implementation=ClassOrInterfaceType()
+    {Links.currentClassLink.add(new Link(Links.currentClassLink.name, implementation, LinkType.INHERITANCE));}
+    ( "," ClassOrInterfaceType()
+    {Links.currentClassLink.add(new Link(Links.currentClassLink.name, implementation, LinkType.INHERITANCE));}
+    )*
+}
+
+void EnumDeclaration():
+{
+}
+{
+    "enum" <IDENTIFIER>
+    [ ImplementsList() ]
+    EnumBody()
+}
+
+void EnumBody():
+{
+}
+{
+    "{"
+    EnumConstant() ( LOOKAHEAD(2) "," EnumConstant() )* [","]
+    [ ";" ( ClassOrInterfaceBodyDeclaration() )* ]
+    "}"
+}
+
+void EnumConstant():
+{
+}
+{
+    <IDENTIFIER> [ Arguments() ] [ ClassOrInterfaceBody() ]
+}
+
+void TypeParameters():
+{
+}
+{
+    "<"
+    (
+    TypeParameter()
+    )?
+    (
+        ","
+        TypeParameter()
+    )*
+    ">"
+}
+
+void TypeParameter():
+{
+ Token genericType;
+}
+{
+    genericType=<IDENTIFIER> [ TypeBound() ]
+    {Links.currentClassLink.add(new Link(Links.currentClassLink.name, genericType.image, LinkType.ASSOCIATION));}
+}
+
+void TypeBound():
+{
+}
+{
+    "extends"
+    ClassOrInterfaceType()
+    (
+        "&"
+        ClassOrInterfaceType()
+    )*
+}
+
+void ClassOrInterfaceBody():
+{
+}
+{
+    "{"
+    (
+        ClassOrInterfaceBodyDeclaration()
+    )*
+    "}"
+//    {System.out.print("Class: ");ClassVariables.printClass();System.out.println();}
+    {ClassVariables.resetClass();}
+}
+
+void ClassOrInterfaceBodyDeclaration():
+{
+ String visibility;
+}
+{
+      LOOKAHEAD(2)
+      Initializer()
+    |
+      visibility=Modifiers() // Just get all the modifiers out of the way. If you want to do
+                  // more checks, pass the modifiers down to the member
+      (
+          LOOKAHEAD(3)
+          (
+            {InternalClassUtils.stack();}
+            ClassOrInterfaceDeclaration(visibility)
+            {InternalClassUtils.pop();}
+          )
+        |
+          EnumDeclaration()
+        |
+          LOOKAHEAD( [ TypeParameters() ] <IDENTIFIER> "(" )
+          ConstructorDeclaration()
+        |
+          LOOKAHEAD( Type() <IDENTIFIER> ( "[" "]" )* ( "," | "=" | ";" ) )
+          FieldDeclaration(visibility)
+        |
+          LOOKAHEAD(2)
+          AnnotationTypeDeclaration()
+        |
+          MethodDeclaration()
+      )
+    |
+      ";"
+}
+
+// TODO: Add option 2 here
+void FieldDeclaration(String visibility):
+{
+ String reference = null, primitive = null, type, id;
+ boolean isReference;
+}
+{
+    // Modifiers are already matched in the caller
+    (LOOKAHEAD(2) reference=ReferenceType() | primitive=PrimitiveType()) id=VariableDeclarator()
+    {
+        if (reference == null) {
+            type = primitive;
+            isReference = false;
+            Stats.typeAttributeCounter.incrementSimpleAttributes();
+        } else {
+            type = reference;
+            isReference = true;
+            Stats.associatedWith.add(type);
+            Stats.typeAttributeCounter.incrementReferencedAttributes();
+        }
+        ClassVariables.classVariables.add(new Variable(type, id));
+        Stats.incrementAttributeCounter(visibility);
+    }
+    (
+        "," id=VariableDeclarator()
+        {ClassVariables.classVariables.add(new Variable(type, id));}
+        {if (isReference) Stats.typeAttributeCounter.incrementReferencedAttributes(); else Stats.typeAttributeCounter.incrementSimpleAttributes();}
+    )*
+    ";"
+}
+
+String VariableDeclarator():
+{
+ String id;
+}
+{
+    id=VariableDeclaratorId() [ "=" VariableInitializer() ]
+    {return id;}
+}
+
+String VariableDeclaratorId():
+{
+ Token id;
+}
+{
+    id=<IDENTIFIER>
+    (
+        "[" "]"
+    )*
+    {return id.image;}
+}
+
+void VariableInitializer():
+{
+}
+{
+      ArrayInitializer()
+    |
+      Expression()
+}
+
+void ArrayInitializer():
+{
+}
+{
+    "{" [ VariableInitializer() ( LOOKAHEAD(2) "," VariableInitializer() )* ] [ "," ] "}"
+}
+
+void MethodDeclaration():
+{
+ String methodName;
+}
+{
+    // Modifiers already matched in the caller!
+    [ TypeParameters() ]
+    ResultType()
+    methodName=MethodDeclarator() [ "throws" NameList() ]
+    (
+      (
+          Block()
+//          {System.out.println("Method: " + methodName);ClassVariables.printFunction();System.out.println("\n------------");}
+      )
+      | ";"
+    )
+    {ClassVariables.resetFunction();}
+}
+
+String MethodDeclarator():
+{
+ Token methodName;
+}
+{
+    
+    methodName=<IDENTIFIER> FormalParameters() ( "[" "]" )*
+    {return methodName.image;}
+}
+
+void FormalParameters():
+{
+}
+{
+    "("
+    [
+      FormalParameter()
+      (
+          ","
+          FormalParameter()
+      )*
+    ]
+    ")"
+}
+
+void FormalParameter():
+{
+ String type, id;
+}
+{
+    Modifiers()
+    type=Type()
+    [
+    <ELLIPSIS>  // ...
+    ]
+    id=VariableDeclaratorId()
+    {ClassVariables.functionVariables.add(new Variable(type, id));}
+}
+
+void ConstructorDeclaration():
+{
+}
+{
+    [ Annotation() ]
+    [ TypeParameters() ]
+    <IDENTIFIER> FormalParameters() [ "throws" NameList() ]
+    "{"
+        [ LOOKAHEAD(ExplicitConstructorInvocation()) ExplicitConstructorInvocation() ]
+    ( BlockStatement() )*
+    "}"
+}
+
+void ExplicitConstructorInvocation():
+{
+}
+{
+    LOOKAHEAD("this" Arguments() ";")
+    "this" Arguments() ";"
+    |
+    [ LOOKAHEAD(2) PrimaryExpression() "." ] "super" Arguments() ";"
+}
+
+void Initializer():
+{
+}
+{
+    [ <STATIC> ] Block()
+}
+
+String Type():
+{
+ String type;
+}
+{
+    (LOOKAHEAD(2) type=ReferenceType() | type=PrimitiveType())
+    {return type;}
+}
+
+String ReferenceType():
+{
+ String referenceName = null;
+ StringBuilder sb = new StringBuilder();
+}
+{
+    LOOKAHEAD(3)
+        referenceName=PrimitiveType() ( LOOKAHEAD(2) "[" "]" {sb.append("[]");})+
+        {
+            referenceName = referenceName + sb.toString();
+            Links.currentClassLink.add(new Link(Links.currentClassLink.name, referenceName, LinkType.ASSOCIATION));
+        }
+        {return referenceName;}
+    |
+        referenceName=ClassOrInterfaceType()
+        ( LOOKAHEAD(2) "[" "]" {sb.append("[]");})*
+        {
+            referenceName = referenceName + sb.toString();
+            Links.currentClassLink.add(new Link(Links.currentClassLink.name, referenceName, LinkType.ASSOCIATION));
+        }
+        {return referenceName;}
+}
+
+String ClassOrInterfaceType():
+{
+ Token name;
+ StringBuilder sb = new StringBuilder();
+}
+{
+    name=<IDENTIFIER> [ LOOKAHEAD(2) TypeArguments() ]
+    {sb.append(name.image);}
+    ( LOOKAHEAD(2) "."
+        name=<IDENTIFIER> [ LOOKAHEAD(2) TypeArguments() ]
+        {sb.append(".").append(name.image);}
+    )*
+    {return sb.toString();}
+}
+
+void TypeArguments():
+{
+}
+{
+     <DIAMOND>
+    |
+    (
+    "<" TypeArgument()
+
+    ( "," TypeArgument() )* ">"
+    )
+}
+
+void TypeArgument():
+{
+}
+{
+    ReferenceType()
+    |
+    "?" [ WildcardBounds() ]
+}
+
+void WildcardBounds():
+{
+}
+{
+    "extends" ReferenceType()
+    |
+    "super" ReferenceType()
+}
+
+String PrimitiveType():
+{
+ Token type;
+}
+{
+    (
+      type="boolean"
+    |
+      type="char"
+    |
+      type="byte"
+    |
+      type="short"
+    |
+      type="int"
+    |
+      type="long"
+    |
+      type="float"
+    |
+      type="double"
+    )
+    {return type.image;}
+}
+
+String ResultType():
+{
+ Token t;
+ String type;
+}
+{
+      t="void"
+      {return t.image;}
+    |
+      type=Type()
+      {return type;}
+}
+
+String Name():
+/*
+ * A lookahead of 2 is required below since "Name" can be followed
+ * by a ".*" when used in the context of an "ImportDeclaration".
+ */
+{
+ StringBuilder sb = new StringBuilder();
+ Token tok;
+}
+{
+    tok=<IDENTIFIER>
+    {sb.append(tok.image);}
+    (
+        LOOKAHEAD(2)
+        "." tok=<IDENTIFIER>
+        {sb.append(".").append(tok.image);}
+    )*
+    {return sb.toString();}
+}
+
+void NameList():
+{
+}
+{
+    Name()
+    ( "," Name() )*
+}
+
+
+/*
+ * Expression syntax follows.
+ */
+
+void Expression():
+/*
+ * This expansion has been written this way instead of:
+ *   Assignment() | ConditionalExpression()
+ * for performance reasons.
+ * However, it is a weakening of the grammar for it allows the LHS of
+ * assignments to be any conditional expression whereas it can only be
+ * a primary expression.  Consider adding a semantic predicate to work
+ * around this.
+ */
+{
+}
+{
+      ConditionalExpression()
+      [
+        LOOKAHEAD(2)
+        AssignmentOperator() Expression()
+      ]
+}
+
+void AssignmentOperator():
+{}
+{
+    "=" | "*=" | "/=" | "%=" | "+=" | "-=" | "<<=" | ">>=" | ">>>=" | "&=" | "^=" | "|="
+}
+
+void ConditionalExpression():
+{
+}
+{
+    ConditionalOrExpression() [ "?" Expression() ":" Expression() ]
+}
+
+void ConditionalOrExpression():
+{
+}
+{
+    ConditionalAndExpression() ( "||" ConditionalAndExpression() )*
+}
+
+void ConditionalAndExpression():
+{
+}
+{
+    InclusiveOrExpression() ( "&&" InclusiveOrExpression() )*
+}
+
+void InclusiveOrExpression():
+{
+}
+{
+    ExclusiveOrExpression() ( "|" ExclusiveOrExpression() )*
+}
+
+void ExclusiveOrExpression():
+{
+}
+{
+    AndExpression() ( "^" AndExpression() )*
+}
+
+void AndExpression():
+{
+}
+{
+    EqualityExpression() ( "&" EqualityExpression() )*
+}
+
+void EqualityExpression():
+{
+}
+{
+    InstanceOfExpression() ( ( "==" | "!=" ) InstanceOfExpression() )*
+}
+
+void InstanceOfExpression():
+{
+}
+{
+    RelationalExpression() [ "instanceof" Type() ]
+}
+
+void RelationalExpression():
+{
+}
+{
+    ShiftExpression() ( ( "<" | ">" | "<=" | ">=" ) ShiftExpression() )*
+}
+
+void ShiftExpression():
+{
+}
+{
+    AdditiveExpression() ( ( "<<" | RSIGNEDSHIFT() | RUNSIGNEDSHIFT() ) AdditiveExpression() )*
+}
+
+void AdditiveExpression():
+{
+}
+{
+    MultiplicativeExpression() ( ( "+" | "-" ) MultiplicativeExpression() )*
+}
+
+void MultiplicativeExpression():
+{
+}
+{
+    UnaryExpression() ( ( "*" | "/" | "%" ) UnaryExpression() )*
+}
+
+void UnaryExpression():
+{
+}
+{
+      ( "+" | "-" ) UnaryExpression()
+    |
+      PreIncrementExpression()
+    |
+      PreDecrementExpression()
+    |
+      UnaryExpressionNotPlusMinus()
+}
+
+void PreIncrementExpression():
+{
+}
+{
+    "++" PrimaryExpression()
+}
+
+void PreDecrementExpression():
+{
+}
+{
+    "--" PrimaryExpression()
+}
+
+void UnaryExpressionNotPlusMinus():
+{
+}
+{
+      ( "~" | "!" ) UnaryExpression()
+    |
+      LOOKAHEAD( CastLookahead() )
+      CastExpression()
+    |
+      PostfixExpression()
+}
+
+// This production is to determine lookahead only.  The LOOKAHEAD specifications
+// below are not used, but they are there just to indicate that we know about
+// this.
+void CastLookahead():
+{
+}
+{
+      LOOKAHEAD(2)
+      "(" PrimitiveType()
+    |
+      LOOKAHEAD("(" Type() "[")
+      "(" Type() "[" "]"
+    |
+      "(" Type() ")" ( "~" | "!" | "(" | <IDENTIFIER> | "this" | "super" | "new" | Literal() )
+}
+
+void PostfixExpression():
+{
+}
+{
+    PrimaryExpression() [ "++" | "--" ]
+}
+
+void CastExpression():
+{
+}
+{
+      LOOKAHEAD("(" PrimitiveType())
+      "(" Type() ")" UnaryExpression()
+    |
+      "(" Type() ")" UnaryExpressionNotPlusMinus()
+}
+
+/**
+ * JLS 15.8 Primary Expressions
+ * Primary expressions include most of the simplest kinds of expressions, from
+ * which all others are constructed: literals, class literals, field accesses,
+ * method invocations, and array accesses. A parenthesized expression is also
+ * treated syntactically as a primary expression.
+ */
+void PrimaryExpression():
+{
+ String prefix, suffix = null;
+}
+{
+    prefix=PrimaryPrefix()
+    ( LOOKAHEAD(2)
+        suffix=PrimarySuffix()
+    )*
+    {
+    // TODO: Add variables declared in function params to variables
+        if (prefix != null && suffix != null && !prefix.isBlank() && !suffix.isBlank()) {
+            // count the number of dots in prefix
+            int dotCount = prefix.length() - prefix.replace(".", "").length();
+            // if the prefix contains multiple dots, variable is only calling a variable that is eventually calling a function,
+            // so it can be ignored
+            if (dotCount == 1) {
+                String caller = prefix.substring(0, prefix.indexOf("."));
+//                System.out.println("-------------------");
+//                ClassVariables.printFunction();
+//                ClassVariables.printClass();
+//                System.out.println();
+//                System.out.println(caller);
+//                System.out.println(ClassVariables.getVariable(caller));
+//                System.out.println("-------------------");
+                if (caller.substring(0, 1).equals(caller.substring(0, 1).toLowerCase()))
+                    ClassCalls.addCall(ClassVariables.getVariable(caller).type);
+                else
+                    ClassCalls.addCall(caller);
+            }
+        }
+    }
+}
+
+void MemberSelector():
+{
+}
+{
+    "." TypeArguments() <IDENTIFIER>
+}
+
+String PrimaryPrefix():
+{
+ String name = null;
+}
+{
+    (
+      Literal()
+    |
+      "this"
+    |
+      "super" "." <IDENTIFIER>
+    |
+      LOOKAHEAD( ClassOrInterfaceType() "." <IDENTIFIER> )
+      ClassOrInterfaceType()"." <IDENTIFIER>
+    |
+      LOOKAHEAD( ClassOrInterfaceType() "." "super" "." <IDENTIFIER> )
+      ClassOrInterfaceType() "." "super" "." <IDENTIFIER>
+    |
+        "(" Expression() ")"
+    |
+        AllocationExpression()
+    |
+      LOOKAHEAD( ResultType() "." "class" )
+      ResultType() "." "class"
+    |
+     name=Name()
+     )
+
+     {return name;}
+}
+
+String PrimarySuffix():
+{
+ String arguments = null;
+}
+{
+    (
+      LOOKAHEAD(2)
+      "." "this"
+    |
+      LOOKAHEAD(2)
+      "." AllocationExpression()
+    |
+      LOOKAHEAD(3)
+      MemberSelector()
+    |
+      "[" Expression() "]"
+    |
+      "." <IDENTIFIER>
+    |
+      arguments=Arguments()
+    )
+
+    {return arguments;}
+}
+
+void Literal():
+{}
+{
+      <INTEGER_LITERAL>
+    |
+      <FLOATING_POINT_LITERAL>
+    |
+      <CHARACTER_LITERAL>
+    |
+      <STRING_LITERAL>
+    |
+      BooleanLiteral()
+    |
+      NullLiteral()
+}
+
+void BooleanLiteral():
+{}
+{
+      "true"
+    |
+      "false"
+}
+
+void NullLiteral():
+{}
+{
+    "null"
+}
+
+String Arguments():
+{
+}
+{
+    "(" [ ArgumentList() ] ")"
+    // I don't care about the argument list, just that what is being called is a function
+    {return "()";}
+}
+
+void ArgumentList():
+{
+}
+{
+    Expression() ( "," Expression() )*
+}
+
+void AllocationExpression():
+{
+}
+{
+      LOOKAHEAD(2)
+      "new" PrimitiveType() ArrayDimsAndInits()
+    |
+      "new" ClassOrInterfaceType() [ TypeArguments() ]
+        (
+            ArrayDimsAndInits()
+        |
+            Arguments() [ ClassOrInterfaceBody() ]
+        )
+}
+
+/*
+ * The third LOOKAHEAD specification below is to parse to PrimarySuffix
+ * if there is an expression between the "[...]".
+ */
+void ArrayDimsAndInits():
+{
+}
+{
+      LOOKAHEAD(2)
+      ( LOOKAHEAD(2) "["  Expression() "]" )+ ( LOOKAHEAD(2) "[" "]" )*
+    |
+      ( "[" "]" )+ ArrayInitializer()
+}
+
+
+/*
+ * Statement syntax follows.
+ */
+
+void Statement():
+{
+}
+{
+      LOOKAHEAD(2)
+      LabeledStatement()
+    |
+      AssertStatement()
+    |
+      Block()
+    |
+      EmptyStatement()
+    |
+      StatementExpression() ";"
+    |
+      SwitchStatement()
+    |
+      IfStatement()
+    |
+      WhileStatement()
+    |
+      DoStatement()
+    |
+      ForStatement()
+    |
+      BreakStatement()
+    |
+      ContinueStatement()
+    |
+      ReturnStatement()
+    |
+      ThrowStatement()
+    |
+      SynchronizedStatement()
+    |
+      TryStatement()
+}
+
+void AssertStatement():
+{}
+{
+    "assert" Expression() [ ":" Expression() ] ";"
+}
+
+void LabeledStatement():
+{}
+{
+    <IDENTIFIER> ":" Statement()
+}
+
+void Block():
+{
+}
+{
+    "{" ( BlockStatement() )* "}"
+}
+
+void BlockStatement():
+{
+}
+{
+    [LOOKAHEAD(2) Annotation()]
+    (
+          LOOKAHEAD( Modifiers() Type() <IDENTIFIER>)
+          LocalVariableDeclaration() ";"
+        |
+          LOOKAHEAD(3)
+          Statement()
+        |
+          ClassOrInterfaceDeclaration("")
+    )
+}
+
+void LocalVariableDeclaration():
+{
+String type, id;
+}
+{
+    
+      // old -- [ "final" ] Type() VariableDeclarator() ( "," VariableDeclarator() )*
+      // new -- Modifiers() Type() VariableDeclarator() ( "," VariableDeclarator() )*
+
+      [LOOKAHEAD(2) Annotation()] Modifiers() type=Type() id=VariableDeclarator()
+      {ClassVariables.functionVariables.add(new Variable(type, id));}
+      ( "," id=VariableDeclarator()
+      {ClassVariables.functionVariables.add(new Variable(type, id));}
+      )*
+}
+
+void EmptyStatement():
+{}
+{
+  ";"
+}
+
+void StatementExpression():
+/*
+ * The last expansion of this production accepts more than the legal
+ * Java expansions for StatementExpression.  This expansion does not
+ * use PostfixExpression for performance reasons.
+ */
+{
+}
+{
+      PreIncrementExpression()
+    |
+      PreDecrementExpression()
+    |
+      PrimaryExpression()
+      [
+        "++"
+      |
+        "--"
+      |
+        AssignmentOperator() Expression()
+      ]
+}
+
+void SwitchStatement():
+{
+}
+{
+    "switch" "(" Expression() ")" "{"
+    ( SwitchLabel() ( BlockStatement() )* )*
+    "}"
+}
+
+void SwitchLabel():
+{
+}
+{
+      "case" Expression() ":"
+    |
+      "default" ":"
+}
+
+void IfStatement():
+/*
+ * The disambiguating algorithm of JavaCC automatically binds dangling
+ * else's to the innermost if statement.  The LOOKAHEAD specification
+ * is to tell JavaCC that we know what we are doing.
+ */
+{
+}
+{
+    "if" "(" Expression() ")" Statement() [ LOOKAHEAD(1) "else" Statement() ]
+}
+
+void WhileStatement():
+{
+}
+{
+    "while" "(" Expression() ")" Statement()
+}
+
+void DoStatement():
+{
+}
+{
+    "do" Statement() "while" "(" Expression() ")" ";"
+}
+
+void ForStatement():
+{
+}
+{
+    "for" "("
+
+    (
+      LOOKAHEAD([Annotation()]["final"] Type() <IDENTIFIER> ":")
+      [LOOKAHEAD(2) Annotation()]["final"] Type() <IDENTIFIER> ":" Expression()
+    |
+     [ ForInit() ] ";" [ Expression() ] ";" [ ForUpdate() ]
+    )
+
+    ")" Statement()
+}
+
+// TODO: what is this? It doesn't appear to be called from anywhere. It's in the
+// JLS, but not used, rather, all modifiers are captured in the Modifiers production.
+void VariableModifier() :
+{}
+{
+    [LOOKAHEAD(2) Annotation()] ["final"]   
+}
+
+void ForInit():
+{
+}
+{
+      LOOKAHEAD( [ "final" ] Type() <IDENTIFIER> )
+      LocalVariableDeclaration()
+    |
+    StatementExpressionList()
+}
+
+void StatementExpressionList():
+{
+}
+{
+    StatementExpression() ( "," StatementExpression() )*
+}
+
+void ForUpdate():
+{}
+{
+    StatementExpressionList()
+}
+
+void BreakStatement():
+{}
+{
+    "break" [ <IDENTIFIER> ] ";"
+}
+
+void ContinueStatement():
+{}
+{
+    "continue" [ <IDENTIFIER> ] ";"
+}
+
+void ReturnStatement():
+{
+}
+{
+    "return" [ Expression() ] ";"
+}
+
+void ThrowStatement():
+{
+}
+{
+    "throw" Expression() ";"
+}
+
+void SynchronizedStatement():
+{
+}
+{
+    <SYNCHRONIZED> "(" Expression() ")" Block()
+}
+
+void TryStatement():
+/*
+ * Semantic check required here to make sure that at least one
+ * finally/catch is present.
+ */
+ // DONE: Java 7 allows try with resources, where the resource implements Closeable.
+ // e.g.
+ // try (BufferedReader br = new BufferedReader(new FileReader(path))) {
+ //   return br.readLine();
+ // }
+ // Note that neither 'catch' nor 'finally' are required in this case.
+ //
+ // DONE: Java 7 allows 'catch' to handle more than one exception type, e.g.
+ // catch (IOException|SQLException ex)
+{
+}
+{
+    "try" ["(" LocalVariableDeclaration()(LOOKAHEAD(2) ";" LocalVariableDeclaration())* [";"] ")"]
+    Block()
+    ( "catch" "("
+        (
+            LOOKAHEAD(3)
+            FormalParameter()
+            |
+            ClassOrInterfaceType()(LOOKAHEAD(2) "|" ClassOrInterfaceType())+ VariableDeclaratorId()
+        )
+              ")"
+        Block()
+    )*
+
+    [ "finally"
+        Block()
+    ]
+}
+
+/* We use productions to match >>>, >> and > so that we can keep the
+ * type declaration syntax with generics clean
+ */
+
+void RUNSIGNEDSHIFT():
+{}
+{
+  ( LOOKAHEAD({ getToken(1).kind == GT &&
+                 getToken(1) instanceof Token.GTToken &&
+                ((Token.GTToken)getToken(1)).realKind == RUNSIGNEDSHIFT} )
+   ">" ">" ">")
+}
+
+void RSIGNEDSHIFT():
+{}
+{
+  ( LOOKAHEAD({ getToken(1).kind == GT &&
+                 getToken(1) instanceof Token.GTToken &&
+                ((Token.GTToken)getToken(1)).realKind == RSIGNEDSHIFT} )
+  ">" ">")
+}
+
+/* Annotation syntax follows. */
+
+void Annotation():
+{
+}
+{
+   LOOKAHEAD( "@" Name() "(" ( <IDENTIFIER> "=" | ")" ))
+       NormalAnnotation()
+     |
+       LOOKAHEAD( "@" Name() "(" )
+       SingleMemberAnnotation()
+     |
+       MarkerAnnotation()
+}
+
+void NormalAnnotation():
+{
+}
+{
+    "@" Name() "(" [ MemberValuePairs() ] ")"
+}
+
+void MarkerAnnotation():
+{
+}
+{
+    "@" Name()
+}
+
+void SingleMemberAnnotation():
+{
+}
+{
+    "@" Name() "(" MemberValue() ")"
+}
+
+void MemberValuePairs():
+{
+}
+{
+    MemberValuePair() ( "," MemberValuePair() )*
+}
+
+void MemberValuePair():
+{
+}
+{
+    <IDENTIFIER> "=" MemberValue()
+}
+
+void MemberValue():
+{
+}
+{
+       LOOKAHEAD(2)
+       Annotation()
+     |
+       MemberValueArrayInitializer()
+     |
+       ConditionalExpression()
+}
+
+void  MemberValueArrayInitializer():
+{
+}
+{
+    "{" (MemberValue() ( LOOKAHEAD(2) "," MemberValue() )* [ "," ])? "}"
+}
+
+
+/* Annotation Types. */
+
+void AnnotationTypeDeclaration():
+{
+}
+{
+    "@" "interface" <IDENTIFIER> AnnotationTypeBody()
+}
+
+void AnnotationTypeBody():
+{
+}
+{
+    "{" ( AnnotationTypeMemberDeclaration() )* "}"
+}
+
+void AnnotationTypeMemberDeclaration():
+{
+ String visibility;
+}
+{
+    visibility=Modifiers()
+        (
+          LOOKAHEAD(Type() <IDENTIFIER> "(")
+          Type() <IDENTIFIER> "(" ")" [ DefaultValue() ] ";"
+        |
+          LOOKAHEAD(3)
+          ClassOrInterfaceDeclaration(visibility)
+        |
+          EnumDeclaration()
+        |
+          LOOKAHEAD(2)
+          AnnotationTypeDeclaration()
+        |
+          FieldDeclaration(visibility)
+        )
+    |
+      ";"
+}
+
+void DefaultValue():
+{
+}
+{
+    "default" MemberValue()
+}
+

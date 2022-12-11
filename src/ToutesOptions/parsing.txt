@@ -1,6 +1,0 @@
-int Test() {
-}
-
-void main(String[] args) {
-    myMethod();
-}
