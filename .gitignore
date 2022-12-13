@@ -1,12 +1,12 @@
-# Eclipse Core      
+!src/Option5_AST
+# Eclipse Core
 .project
 .settings/*
 
-# JDT-specific (Eclipse Java Development Tools)     
+# JDT-specific (Eclipse Java Development Tools)
 .classpath
 
 # Files generated when compiled
-!src/Option5_AST
 src/*.java
 src/*.class
 src/*/*.java
